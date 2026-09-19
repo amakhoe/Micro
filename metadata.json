@@ -1,0 +1,6 @@
+{
+  "name": "Bayete Microcrédito",
+  "description": "Sistema de gestão de microcrédito focado em pequenos empreendedores locais com cadastro de clientes, análise de crédito, pagamentos e relatórios.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
