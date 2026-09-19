@@ -12,6 +12,7 @@ import {
   Coins,
   Sparkles,
   TrendingUp,
+  Trash2,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -20,6 +21,7 @@ interface NavbarProps {
   onOpenNewClient: () => void;
   onOpenNewCredit: () => void;
   onSeedData: () => void;
+  onClearAllData?: () => void;
   isSeeding: boolean;
   hasData: boolean;
 }
@@ -30,6 +32,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenNewClient,
   onOpenNewCredit,
   onSeedData,
+  onClearAllData,
   isSeeding,
   hasData,
 }) => {
@@ -88,6 +91,18 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Quick Actions & User Info */}
           <div className="flex items-center space-x-2 sm:space-x-3">
+            {hasData && onClearAllData && (
+              <button
+                id="btn-nav-clear-data"
+                onClick={onClearAllData}
+                className="inline-flex items-center space-x-1 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-rose-500/30 px-2.5 py-1.5 rounded-lg transition-all"
+                title="Remover todas as informações da base de dados Firebase"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span className="hidden lg:inline">Limpar Sistema</span>
+              </button>
+            )}
+
             {!hasData && (
               <button
                 id="btn-seed-data"

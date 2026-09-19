@@ -21,18 +21,27 @@ import {
   Building,
   ShieldCheck,
   Calendar,
+  Trash2,
+  Database,
+  Sparkles,
 } from 'lucide-react';
 
 interface ReportsViewProps {
   clients: Client[];
   credits: CreditApplication[];
   payments: PaymentRecord[];
+  onClearAllData?: () => void;
+  onSeedData?: () => void;
+  isSeeding?: boolean;
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
   clients,
   credits,
   payments,
+  onClearAllData,
+  onSeedData,
+  isSeeding,
 }) => {
   const totalDesembolsado = credits
     .filter((c) => c.status === 'desembolsado' || c.status === 'liquidado')
@@ -236,6 +245,46 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <div>
             <span className="text-slate-400 text-[11px] block">Taxa de Cobrança</span>
             <span className="font-bold text-white text-sm">{taxaRecuperacao}%</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Database Maintenance & Management */}
+      <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center space-x-2 text-slate-900 font-semibold text-xs mb-1">
+              <Database className="w-4 h-4 text-slate-600" />
+              <span>Gestão da Base de Dados Firebase</span>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Controle de dados: limpe todas as informações para começar do zero ou carregue dados de demonstração.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {onSeedData && (
+              <button
+                id="btn-reports-seed-data"
+                onClick={onSeedData}
+                disabled={isSeeding}
+                className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-medium transition-colors"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                <span>{isSeeding ? 'Carregando...' : 'Carregar Dados Exemplo'}</span>
+              </button>
+            )}
+
+            {onClearAllData && (
+              <button
+                id="btn-reports-clear-all"
+                onClick={onClearAllData}
+                className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                <span>Limpar Todo o Sistema</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

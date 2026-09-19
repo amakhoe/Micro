@@ -324,3 +324,44 @@ export async function seedInitialData(): Promise<{
 
   return { clients: createdClients, credits: createdCredits, payments: createdPayments };
 }
+
+// CLEAR ALL SYSTEM DATA
+export async function clearAllSystemData(): Promise<void> {
+  // Clear clients collection
+  try {
+    const clientsCol = collection(db, CLIENTS_COLLECTION);
+    const clientsSnap = await getDocs(clientsCol);
+    for (const d of clientsSnap.docs) {
+      await deleteDoc(doc(db, CLIENTS_COLLECTION, d.id));
+    }
+  } catch (err) {
+    console.warn('Error deleting clients from Firestore:', err);
+  }
+
+  // Clear credits collection
+  try {
+    const creditsCol = collection(db, CREDITS_COLLECTION);
+    const creditsSnap = await getDocs(creditsCol);
+    for (const d of creditsSnap.docs) {
+      await deleteDoc(doc(db, CREDITS_COLLECTION, d.id));
+    }
+  } catch (err) {
+    console.warn('Error deleting credits from Firestore:', err);
+  }
+
+  // Clear payments collection
+  try {
+    const payCol = collection(db, PAYMENTS_COLLECTION);
+    const paySnap = await getDocs(payCol);
+    for (const d of paySnap.docs) {
+      await deleteDoc(doc(db, PAYMENTS_COLLECTION, d.id));
+    }
+  } catch (err) {
+    console.warn('Error deleting payments from Firestore:', err);
+  }
+
+  memoryClients = [];
+  memoryCredits = [];
+  memoryPayments = [];
+}
+

@@ -112,6 +112,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
+      {/* Fresh/Empty State Welcome Banner */}
+      {clients.length === 0 && credits.length === 0 && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 text-emerald-950 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md">
+              <Users className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-emerald-900">Sistema Limpo e Pronto para Novos Registos</h2>
+              <p className="text-xs text-emerald-700 mt-0.5">
+                Todas as informações anteriores foram removidas. Comece agora a cadastrar os seus clientes e a gerir operações de microcrédito.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 shrink-0">
+            <button
+              onClick={onOpenNewClient}
+              className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors flex items-center space-x-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Cadastrar Primeiro Empreendedor</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Primary KPI Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Empreendedores */}
@@ -381,22 +407,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span>Setores Atendidos pela Bayete</span>
             </h3>
 
-            <div className="space-y-2">
-              {Object.entries(professionCount).slice(0, 5).map(([prof, count]) => {
-                const pct = clients.length > 0 ? Math.round((count / clients.length) * 100) : 0;
-                return (
-                  <div key={prof}>
-                    <div className="flex justify-between text-[11px] mb-1">
-                      <span className="text-slate-700 font-medium truncate max-w-[200px]">{prof}</span>
-                      <span className="text-slate-500 font-mono">{count} ({pct}%)</span>
+            {Object.keys(professionCount).length > 0 ? (
+              <div className="space-y-2">
+                {Object.entries(professionCount).slice(0, 5).map(([prof, count]) => {
+                  const pct = clients.length > 0 ? Math.round((count / clients.length) * 100) : 0;
+                  return (
+                    <div key={prof}>
+                      <div className="flex justify-between text-[11px] mb-1">
+                        <span className="text-slate-700 font-medium truncate max-w-[200px]">{prof}</span>
+                        <span className="text-slate-500 font-mono">{count} ({pct}%)</span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                        <div className="bg-emerald-600 h-full rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
                     </div>
-                    <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                      <div className="bg-emerald-600 h-full rounded-full" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-[11px] text-slate-400 py-3 text-center italic">
+                Nenhum setor registado ainda.
+              </p>
+            )}
           </div>
         </div>
       </div>
