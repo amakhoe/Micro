@@ -12,7 +12,6 @@ import {
   Eye,
   EyeOff,
   Loader2,
-  Database,
 } from 'lucide-react';
 
 export const AuthModal: React.FC = () => {
@@ -156,10 +155,7 @@ export const AuthModal: React.FC = () => {
           </form>
 
           {/* Database Synchronization Notice */}
-          <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-center space-x-1.5 text-[11px] text-slate-400">
-            <Database className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            <span>Dados de perfil validados na base de dados Firebase</span>
-          </div>
+      
         </div>
       </div>
     </div>

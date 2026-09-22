@@ -13,7 +13,6 @@ import {
   Coins,
   Sparkles,
   TrendingUp,
-  Trash2,
   Settings,
   UserPlus,
   Menu,
@@ -27,7 +26,6 @@ interface SidebarProps {
   onOpenNewClient: () => void;
   onOpenNewCredit: () => void;
   onSeedData: () => void;
-  onClearAllData?: () => void;
   onOpenProfile?: () => void;
   isSeeding: boolean;
   hasData: boolean;
@@ -42,7 +40,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenNewClient,
   onOpenNewCredit,
   onSeedData,
-  onClearAllData,
   onOpenProfile,
   isSeeding,
   hasData,
@@ -196,21 +193,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
             <span className="truncate">{isSeeding ? 'Carregando...' : 'Carregar Dados Exemplo'}</span>
-          </button>
-        )}
-
-        {hasData && onClearAllData && (
-          <button
-            id="btn-sidebar-clear-data"
-            onClick={() => {
-              onClearAllData();
-              setIsMobileOpen(false);
-            }}
-            className="w-full flex items-center space-x-2.5 px-3.5 py-2 rounded-xl text-xs font-medium text-rose-400 hover:text-rose-200 hover:bg-rose-500/15 border border-rose-500/25 transition-all"
-            title="Limpar todos os registos do sistema"
-          >
-            <Trash2 className="w-4 h-4 text-rose-400 shrink-0" />
-            <span className="truncate">Limpar Sistema</span>
           </button>
         )}
       </nav>

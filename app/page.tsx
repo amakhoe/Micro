@@ -25,9 +25,8 @@ import {
   fetchPayments,
   recordPaymentDoc,
   seedInitialData,
-  clearAllSystemData,
 } from '@/lib/firestore-service';
-import { Loader2, Sparkles, CheckCircle2, AlertCircle, Trash2, AlertTriangle } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 function BayeteApp() {
   const { user, loading: authLoading } = useAuth();
@@ -40,8 +39,6 @@ function BayeteApp() {
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
   const [isSeeding, setIsSeeding] = useState<boolean>(false);
-  const [isClearing, setIsClearing] = useState<boolean>(false);
-  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState<boolean>(false);
 
   // Modals state
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
@@ -103,24 +100,6 @@ function BayeteApp() {
       showToast('Erro ao carregar dados de demonstração.', 'error');
     } finally {
       setIsSeeding(false);
-    }
-  };
-
-  // Clear All System Data Handler
-  const handleClearAllData = async () => {
-    setIsClearing(true);
-    try {
-      await clearAllSystemData();
-      setClients([]);
-      setCredits([]);
-      setPayments([]);
-      showToast('Todas as informações foram removidas com sucesso! O sistema está pronto para novos dados.', 'info');
-    } catch (err) {
-      console.error('Error clearing system data:', err);
-      showToast('Erro ao remover informações do sistema.', 'error');
-    } finally {
-      setIsClearing(false);
-      setIsClearConfirmOpen(false);
     }
   };
 
@@ -251,7 +230,6 @@ function BayeteApp() {
           setIsCreditModalOpen(true);
         }}
         onSeedData={handleSeedData}
-        onClearAllData={() => setIsClearConfirmOpen(true)}
         onOpenProfile={() => setIsProfileModalOpen(true)}
         isSeeding={isSeeding}
         hasData={clients.length > 0 || credits.length > 0 || payments.length > 0}
@@ -336,7 +314,6 @@ function BayeteApp() {
                 clients={clients}
                 credits={credits}
                 payments={payments}
-                onClearAllData={() => setIsClearConfirmOpen(true)}
                 onSeedData={handleSeedData}
                 onOpenProfile={() => setIsProfileModalOpen(true)}
                 isSeeding={isSeeding}
@@ -386,56 +363,6 @@ function BayeteApp() {
         onClose={() => setIsProfileModalOpen(false)}
         onSuccessToast={(msg) => showToast(msg, 'success')}
       />
-
-      {/* Clear Database Confirmation Modal */}
-      {isClearConfirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
-            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-
-            <h3 className="text-lg font-bold text-slate-900 text-center mb-2">
-              Remover Todas as Informações?
-            </h3>
-
-            <p className="text-xs text-slate-600 text-center leading-relaxed mb-6">
-              Esta ação apagará permanentemente todos os cadastros de empreendedores, análises de microcrédito e registos de pagamentos da base de dados Firebase. O sistema ficará completamente limpo para inserção dos seus novos dados.
-            </p>
-
-            <div className="flex items-center space-x-3">
-              <button
-                type="button"
-                id="btn-cancel-clear"
-                onClick={() => setIsClearConfirmOpen(false)}
-                disabled={isClearing}
-                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                id="btn-confirm-clear"
-                onClick={handleClearAllData}
-                disabled={isClearing}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-md transition-colors flex items-center justify-center space-x-1.5"
-              >
-                {isClearing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Limpando...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-4 h-4" />
-                    <span>Sim, Limpar Tudo</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

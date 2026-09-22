@@ -77,7 +77,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
         <div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center space-x-2">
             <Users className="w-5 h-5 text-emerald-600" />
-            <span>Registo de Clientes & Empreendedores ({clients.length})</span>
+            <span>Registo de Clientes ({clients.length})</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
             Cadastro cadastral completo: BI, NUIT, contacto, residência, rendimento e profissão
@@ -100,7 +100,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
             className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors"
           >
             <Plus className="w-4 h-4" />
-            <span>Novo Empreendedor</span>
+            <span>Novo Cliente</span>
           </button>
         </div>
       </div>

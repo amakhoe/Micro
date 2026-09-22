@@ -27,7 +27,6 @@ interface ReportsViewProps {
   clients: Client[];
   credits: CreditApplication[];
   payments: PaymentRecord[];
-  onClearAllData?: () => void;
   onSeedData?: () => void;
   onOpenProfile?: () => void;
   isSeeding?: boolean;

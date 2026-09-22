@@ -174,6 +174,45 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const taxaRecuperacao = totalDesembolsado > 0 ? ((totalRecebido / totalDesembolsado) * 100).toFixed(1) : '0';
 
+  // Taxa de inadimplência (créditos com pagamentos em atraso versus totais)
+  const creditosOperacionais = credits.filter(
+    (c) => c.status === 'desembolsado' || c.status === 'liquidado'
+  );
+  const totalCreditosBase = creditosOperacionais.length > 0 ? creditosOperacionais.length : credits.length;
+
+  const creditosComAtraso = useMemo(() => {
+    return credits.filter((c) => {
+      if (c.status !== 'desembolsado') return false;
+      return c.installments?.some((inst) => {
+        if (inst.status !== 'pendente') return false;
+        try {
+          const parts = inst.dueDate.split('T')[0].split('-').map(Number);
+          const dueObj = new Date(parts[0], parts[1] - 1, parts[2]);
+          dueObj.setHours(0, 0, 0, 0);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          return dueObj.getTime() < today.getTime();
+        } catch {
+          return false;
+        }
+      });
+    });
+  }, [credits]);
+
+  const totalCreditosInadimplentes = creditosComAtraso.length;
+  const taxaInadimplencia =
+    totalCreditosBase > 0
+      ? ((totalCreditosInadimplentes / totalCreditosBase) * 100).toFixed(1)
+      : '0.0';
+
+  const handleInadimplenciaCardClick = () => {
+    setAlertFilter('overdue');
+    const alertsSection = document.getElementById('section-dashboard-alerts');
+    if (alertsSection) {
+      alertsSection.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   // Distribution by profession
   const professionCount = clients.reduce((acc: Record<string, number>, c) => {
     const key = c.profession.split('/')[0].trim();
@@ -263,9 +302,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <Users className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-emerald-900">Sistema Limpo e Pronto para Novos Registos</h2>
+              <h2 className="text-sm font-bold text-emerald-900">Pronto para Novos Registos</h2>
               <p className="text-xs text-emerald-700 mt-0.5">
-                Todas as informações anteriores foram removidas. Comece agora a cadastrar os seus clientes e a gerir operações de microcrédito.
+                Comece agora a cadastrar os seus clientes e a gerir operações de microcrédito.
               </p>
             </div>
           </div>
@@ -275,21 +314,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors flex items-center space-x-1.5"
             >
               <Plus className="w-4 h-4" />
-              <span>Cadastrar Primeiro Empreendedor</span>
+              <span>Cadastrar Primeiro Cliente</span>
             </button>
           </div>
         </div>
       )}
 
       {/* Primary KPI Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {/* Card 1: Empreendedores */}
         <div
+          id="card-kpi-clients"
           onClick={() => onNavigateTab('clients')}
           className="bg-white p-4.5 rounded-xl border border-slate-200 hover:border-emerald-500 transition-all cursor-pointer shadow-sm group"
         >
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-medium">Empreendedores Registados</span>
+            <span className="text-xs font-medium">Empreendedores</span>
             <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center group-hover:scale-105 transition-transform">
               <Users className="w-4 h-4" />
             </div>
@@ -297,17 +337,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="text-2xl font-bold text-slate-900 tracking-tight">{clients.length}</div>
           <p className="text-[11px] text-slate-500 mt-1 flex items-center space-x-1">
             <span className="text-emerald-600 font-semibold">{clients.filter((c) => c.status === 'ativo').length} ativos</span>
-            <span>com documentação validada</span>
+            <span>com docs em dia</span>
           </p>
         </div>
 
         {/* Card 2: Desembolsado */}
         <div
+          id="card-kpi-disbursed"
           onClick={() => onNavigateTab('credits')}
           className="bg-white p-4.5 rounded-xl border border-slate-200 hover:border-emerald-500 transition-all cursor-pointer shadow-sm group"
         >
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-medium">Créditos Desembolsados</span>
+            <span className="text-xs font-medium">Desembolsados</span>
             <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center group-hover:scale-105 transition-transform">
               <TrendingUp className="w-4 h-4" />
             </div>
@@ -316,17 +357,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {formatCurrencyMT(totalDesembolsado)}
           </div>
           <p className="text-[11px] text-slate-500 mt-1">
-            {credits.filter((c) => c.status === 'desembolsado' || c.status === 'liquidado').length} micro-operações concluídas
+            {credits.filter((c) => c.status === 'desembolsado' || c.status === 'liquidado').length} operações concluídas
           </p>
         </div>
 
         {/* Card 3: Total Amortizado */}
         <div
+          id="card-kpi-repaid"
           onClick={() => onNavigateTab('payments')}
           className="bg-white p-4.5 rounded-xl border border-slate-200 hover:border-emerald-500 transition-all cursor-pointer shadow-sm group"
         >
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-medium">Total Recuperado / Pago</span>
+            <span className="text-xs font-medium">Total Recuperado</span>
             <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center group-hover:scale-105 transition-transform">
               <CreditCard className="w-4 h-4" />
             </div>
@@ -335,17 +377,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {formatCurrencyMT(totalRecebido)}
           </div>
           <p className="text-[11px] text-slate-500 mt-1">
-            {payments.length} recibos processados via M-Pesa e Banco
+            {payments.length} recibos processados
           </p>
         </div>
 
         {/* Card 4: Carteira Ativa */}
         <div
+          id="card-kpi-active-portfolio"
           onClick={() => onNavigateTab('credits')}
           className="bg-white p-4.5 rounded-xl border border-slate-200 hover:border-amber-500 transition-all cursor-pointer shadow-sm group"
         >
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-medium">Carteira Ativa em Aberto</span>
+            <span className="text-xs font-medium">Carteira Ativa</span>
             <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center group-hover:scale-105 transition-transform">
               <Coins className="w-4 h-4" />
             </div>
@@ -354,8 +397,61 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {formatCurrencyMT(totalCarteiraAtiva)}
           </div>
           <p className="text-[11px] text-slate-500 mt-1 flex items-center space-x-1">
-            <span>Taxa de Recuperação:</span>
+            <span>Recuperação:</span>
             <span className="font-semibold text-emerald-700">{taxaRecuperacao}%</span>
+          </p>
+        </div>
+
+        {/* Card 5: Taxa de Inadimplência */}
+        <div
+          id="card-kpi-inadimplencia"
+          onClick={handleInadimplenciaCardClick}
+          className={`bg-white p-4.5 rounded-xl border transition-all cursor-pointer shadow-sm group ${
+            totalCreditosInadimplentes > 0
+              ? 'border-slate-200 hover:border-rose-500'
+              : 'border-slate-200 hover:border-emerald-500'
+          }`}
+          title="Clique para visualizar os créditos com parcelas em atraso"
+        >
+          <div className="flex items-center justify-between text-slate-500 mb-2">
+            <span className="text-xs font-medium">Taxa de Inadimplência</span>
+            <div
+              className={`w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform ${
+                totalCreditosInadimplentes > 0
+                  ? 'bg-rose-50 text-rose-700'
+                  : 'bg-emerald-50 text-emerald-700'
+              }`}
+            >
+              {totalCreditosInadimplentes > 0 ? (
+                <ShieldAlert className="w-4 h-4 text-rose-600 animate-pulse" />
+              ) : (
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              )}
+            </div>
+          </div>
+          <div
+            className={`text-2xl font-bold tracking-tight font-mono ${
+              totalCreditosInadimplentes > 0 ? 'text-rose-700' : 'text-slate-900'
+            }`}
+          >
+            {taxaInadimplencia}%
+          </div>
+          <p className="text-[11px] mt-1 flex items-center space-x-1 truncate">
+            {totalCreditosInadimplentes > 0 ? (
+              <>
+                <span className="text-rose-600 font-semibold font-mono">
+                  {totalCreditosInadimplentes} de {totalCreditosBase}
+                </span>
+                <span className="text-slate-500">em atraso</span>
+              </>
+            ) : (
+              <>
+                <span className="text-emerald-700 font-semibold font-mono">
+                  0 de {totalCreditosBase}
+                </span>
+                <span className="text-slate-500">em mora • Regular</span>
+              </>
+            )}
           </p>
         </div>
       </div>
