@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
+import { useAuth } from '@/lib/auth-context';
 import { Client, CreditApplication, PaymentRecord } from '@/types';
 import { formatCurrencyMT } from '@/lib/credit-calculator';
 import { generatePortfolioReportPDF, generatePaymentReceiptPDF } from '@/lib/pdf-generator';
@@ -15,11 +16,36 @@ import {
   ArrowUpRight,
   ShieldCheck,
   CheckCircle,
+  CheckCircle2,
   Clock,
   Briefcase,
   AlertCircle,
   Coins,
+  User,
+  Settings,
+  Bell,
+  AlertTriangle,
+  Calendar,
+  Phone,
+  ArrowRight,
+  ChevronRight,
+  ShieldAlert,
 } from 'lucide-react';
+
+export interface DueAlertItem {
+  creditId: string;
+  clientId: string;
+  clientName: string;
+  clientPhone: string;
+  clientProfession: string;
+  purpose: string;
+  installmentNumber: number;
+  totalInstallments: number;
+  installmentAmount: number;
+  dueDate: string;
+  daysRemaining: number;
+  isOverdue: boolean;
+}
 
 interface DashboardViewProps {
   clients: Client[];
@@ -28,7 +54,9 @@ interface DashboardViewProps {
   onOpenNewClient: () => void;
   onOpenNewCredit: () => void;
   onOpenNewPayment: () => void;
+  onOpenPaymentForCredit?: (creditId: string) => void;
   onNavigateTab: (tab: 'dashboard' | 'clients' | 'credits' | 'payments' | 'reports') => void;
+  onOpenProfile?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -38,8 +66,101 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenNewClient,
   onOpenNewCredit,
   onOpenNewPayment,
+  onOpenPaymentForCredit,
   onNavigateTab,
+  onOpenProfile,
 }) => {
+  const { user } = useAuth();
+  const [alertFilter, setAlertFilter] = useState<'7days' | 'overdue' | 'all'>('7days');
+
+  // Compute pending installment alerts
+  const allAlerts: DueAlertItem[] = useMemo(() => {
+    const list: DueAlertItem[] = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (const credit of credits) {
+      if (credit.status === 'recusado' || credit.status === 'liquidado') continue;
+      if (!credit.installments || !Array.isArray(credit.installments)) continue;
+
+      credit.installments.forEach((inst) => {
+        if (inst.status === 'pendente') {
+          // Parse YYYY-MM-DD safely
+          let diffDays = 0;
+          try {
+            const parts = inst.dueDate.split('T')[0].split('-').map(Number);
+            const dueObj = new Date(parts[0], parts[1] - 1, parts[2]);
+            dueObj.setHours(0, 0, 0, 0);
+            const diffMs = dueObj.getTime() - today.getTime();
+            diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+          } catch {
+            const fallbackDue = new Date(inst.dueDate);
+            fallbackDue.setHours(0, 0, 0, 0);
+            diffDays = Math.round((fallbackDue.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          }
+
+          list.push({
+            creditId: credit.id,
+            clientId: credit.clientId,
+            clientName: credit.clientName,
+            clientPhone: credit.clientPhone,
+            clientProfession: credit.clientProfession,
+            purpose: credit.purpose,
+            installmentNumber: inst.number,
+            totalInstallments: credit.termMonths || credit.installments.length,
+            installmentAmount: inst.amount,
+            dueDate: inst.dueDate,
+            daysRemaining: diffDays,
+            isOverdue: diffDays < 0,
+          });
+        }
+      });
+    }
+
+    // Sort by daysRemaining ascending (most urgent first)
+    list.sort((a, b) => a.daysRemaining - b.daysRemaining);
+    return list;
+  }, [credits]);
+
+  const upcoming7DaysAlerts = useMemo(() => {
+    return allAlerts.filter((a) => a.daysRemaining >= 0 && a.daysRemaining <= 7);
+  }, [allAlerts]);
+
+  const overdueAlerts = useMemo(() => {
+    return allAlerts.filter((a) => a.daysRemaining < 0);
+  }, [allAlerts]);
+
+  const displayedAlerts = useMemo(() => {
+    if (alertFilter === '7days') return upcoming7DaysAlerts;
+    if (alertFilter === 'overdue') return overdueAlerts;
+    return allAlerts;
+  }, [alertFilter, upcoming7DaysAlerts, overdueAlerts, allAlerts]);
+
+  const total7DaysAmount = useMemo(() => {
+    return upcoming7DaysAlerts.reduce((sum, a) => sum + a.installmentAmount, 0);
+  }, [upcoming7DaysAlerts]);
+
+  // Format date display (DD/MM/YYYY)
+  const formatDueDate = (dateStr: string) => {
+    try {
+      const parts = dateStr.split('T')[0].split('-');
+      if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
+      return new Date(dateStr).toLocaleDateString('pt-MZ');
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const handlePayInstallment = (alertItem: DueAlertItem) => {
+    if (onOpenPaymentForCredit) {
+      onOpenPaymentForCredit(alertItem.creditId);
+    } else {
+      onOpenNewPayment();
+    }
+  };
+
   // Financial computations
   const totalDesembolsado = credits
     .filter((c) => c.status === 'desembolsado' || c.status === 'liquidado')
@@ -52,9 +173,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     .reduce((acc, c) => acc + c.remainingBalance, 0);
 
   const taxaRecuperacao = totalDesembolsado > 0 ? ((totalRecebido / totalDesembolsado) * 100).toFixed(1) : '0';
-
-  const pendingAnalyses = credits.filter((c) => c.status === 'pendente');
-  const activeLoans = credits.filter((c) => c.status === 'desembolsado');
 
   // Distribution by profession
   const professionCount = clients.reduce((acc: Record<string, number>, c) => {
@@ -92,6 +210,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {upcoming7DaysAlerts.length > 0 && (
+              <a
+                href="#section-dashboard-alerts"
+                className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-xs font-medium transition-all shadow-sm"
+                title="Rolar para alertas de vencimento da semana"
+              >
+                <Bell className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                <span>{upcoming7DaysAlerts.length} {upcoming7DaysAlerts.length === 1 ? 'Alerta (7 dias)' : 'Alertas (7 dias)'}</span>
+              </a>
+            )}
+            {onOpenProfile && (
+              <button
+                id="btn-dashboard-profile"
+                onClick={onOpenProfile}
+                className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-lg bg-emerald-800/80 hover:bg-emerald-700 border border-emerald-500/50 text-white text-xs font-medium transition-all shadow-sm"
+                title="Editar Perfil do Administrador"
+              >
+                {user?.photoURL ? (
+                  <img src={user.photoURL} alt="Foto" className="w-4 h-4 rounded-full object-cover border border-emerald-400" />
+                ) : (
+                  <User className="w-3.5 h-3.5 text-emerald-300" />
+                )}
+                <span>Editar Perfil</span>
+              </button>
+            )}
             <button
               id="btn-quick-export-pdf"
               onClick={handleExportPDF}
@@ -273,6 +416,287 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </button>
       </div>
+
+      {/* SECTOR / SECTION: ALERTAS DE VENCIMENTO (PRÓXIMOS 7 DIAS) */}
+      <section id="section-dashboard-alerts" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {/* Alerts Header */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/90 via-white to-amber-50/40 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center space-x-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
+              overdueAlerts.length > 0
+                ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                : upcoming7DaysAlerts.length > 0
+                ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+            }`}>
+              {overdueAlerts.length > 0 ? (
+                <AlertTriangle className="w-5 h-5 text-rose-600 animate-pulse" />
+              ) : upcoming7DaysAlerts.length > 0 ? (
+                <Bell className="w-5 h-5 text-amber-700" />
+              ) : (
+                <ShieldCheck className="w-5 h-5 text-emerald-600" />
+              )}
+            </div>
+            <div>
+              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                <h2 className="text-sm font-bold text-slate-900 tracking-tight flex items-center space-x-1.5">
+                  <span>Alertas de Vencimento</span>
+                </h2>
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                  upcoming7DaysAlerts.length > 0
+                    ? 'bg-amber-50 text-amber-800 border-amber-300'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                }`}>
+                  {upcoming7DaysAlerts.length === 1
+                    ? '1 parcela nos próximos 7 dias'
+                    : `${upcoming7DaysAlerts.length} parcelas nos próximos 7 dias`}
+                </span>
+                {overdueAlerts.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-300 animate-pulse">
+                    {overdueAlerts.length} em atraso
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Acompanhamento proativo de parcelas a vencer nos próximos 7 dias para cobrança preventiva e gestão de tesouraria.
+              </p>
+            </div>
+          </div>
+
+          {/* Filter Pills */}
+          <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl shrink-0 self-start md:self-auto border border-slate-200/70">
+            <button
+              id="tab-alert-filter-7days"
+              onClick={() => setAlertFilter('7days')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 ${
+                alertFilter === '7days'
+                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>Próximos 7 Dias</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                alertFilter === '7days' ? 'bg-amber-100 text-amber-800 font-bold' : 'bg-slate-200 text-slate-600'
+              }`}>
+                {upcoming7DaysAlerts.length}
+              </span>
+            </button>
+
+            <button
+              id="tab-alert-filter-overdue"
+              onClick={() => setAlertFilter('overdue')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 ${
+                alertFilter === 'overdue'
+                  ? 'bg-white text-rose-700 shadow-xs border border-slate-200'
+                  : 'text-slate-600 hover:text-rose-600'
+              }`}
+            >
+              <span>Em Atraso</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                overdueAlerts.length > 0 ? 'bg-rose-100 text-rose-700 font-bold' : 'bg-slate-200 text-slate-600'
+              }`}>
+                {overdueAlerts.length}
+              </span>
+            </button>
+
+            <button
+              id="tab-alert-filter-all"
+              onClick={() => setAlertFilter('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 ${
+                alertFilter === 'all'
+                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>Todas as Pendentes</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                alertFilter === 'all' ? 'bg-emerald-100 text-emerald-800 font-bold' : 'bg-slate-200 text-slate-600'
+              }`}>
+                {allAlerts.length}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Informative summary bar if in 7days view */}
+        {alertFilter === '7days' && upcoming7DaysAlerts.length > 0 && (
+          <div className="bg-amber-50/70 border-b border-amber-100/90 px-4 py-2.5 flex flex-wrap items-center justify-between text-xs text-amber-950 gap-2">
+            <div className="flex items-center space-x-2">
+              <Calendar className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+              <span>
+                Previsão de cobrança nos próximos 7 dias: <strong className="font-mono text-amber-950 font-bold">{formatCurrencyMT(total7DaysAmount)}</strong> em <strong className="font-semibold">{upcoming7DaysAlerts.length} {upcoming7DaysAlerts.length === 1 ? 'parcela' : 'parcelas'}</strong>.
+              </span>
+            </div>
+            <span className="text-[11px] text-amber-800 font-medium">
+              Aconselha-se contacto prévio com os clientes para garantir a liquidação pontual via M-Pesa ou E-Mola.
+            </span>
+          </div>
+        )}
+
+        {/* Content list / grid */}
+        <div className="p-4 sm:p-5">
+          {displayedAlerts.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+              {displayedAlerts.map((a) => {
+                // Determine urgency style
+                let urgencyBadge = (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center space-x-1">
+                    <Clock className="w-2.5 h-2.5" />
+                    <span>Em {a.daysRemaining} dias</span>
+                  </span>
+                );
+
+                if (a.isOverdue) {
+                  urgencyBadge = (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300 flex items-center space-x-1 animate-pulse">
+                      <AlertTriangle className="w-2.5 h-2.5" />
+                      <span>{Math.abs(a.daysRemaining)}d em atraso</span>
+                    </span>
+                  );
+                } else if (a.daysRemaining === 0) {
+                  urgencyBadge = (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center space-x-1 animate-pulse">
+                      <Clock className="w-2.5 h-2.5" />
+                      <span>Vence Hoje</span>
+                    </span>
+                  );
+                } else if (a.daysRemaining === 1) {
+                  urgencyBadge = (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 flex items-center space-x-1">
+                      <Clock className="w-2.5 h-2.5" />
+                      <span>Vence Amanhã</span>
+                    </span>
+                  );
+                }
+
+                return (
+                  <div
+                    key={`${a.creditId}-${a.installmentNumber}`}
+                    id={`alert-card-${a.creditId}-${a.installmentNumber}`}
+                    className={`rounded-xl border p-4 flex flex-col justify-between transition-all hover:shadow-md ${
+                      a.isOverdue
+                        ? 'border-rose-200 bg-rose-50/30 hover:border-rose-300'
+                        : a.daysRemaining <= 1
+                        ? 'border-amber-200 bg-amber-50/30 hover:border-amber-300'
+                        : 'border-slate-200 bg-white hover:border-emerald-300'
+                    }`}
+                  >
+                    <div>
+                      {/* Top Row: Client & Urgency */}
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="min-w-0">
+                          <h3 className="font-bold text-xs text-slate-900 truncate" title={a.clientName}>
+                            {a.clientName}
+                          </h3>
+                          <p className="text-[10px] text-slate-500 truncate" title={a.clientProfession}>
+                            {a.clientProfession}
+                          </p>
+                        </div>
+                        <div className="shrink-0">{urgencyBadge}</div>
+                      </div>
+
+                      {/* Purpose */}
+                      {a.purpose && (
+                        <p className="text-[11px] text-slate-600 line-clamp-1 italic bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100 mb-3">
+                          &ldquo;{a.purpose}&rdquo;
+                        </p>
+                      )}
+
+                      {/* Installment Info & Due Date */}
+                      <div className="grid grid-cols-2 gap-2 text-[11px] py-2 border-t border-b border-slate-100 mb-3">
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">Parcela</span>
+                          <span className="font-semibold text-slate-800">
+                            Nº {a.installmentNumber} <span className="text-slate-400 font-normal">de {a.totalInstallments}</span>
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-slate-400 block text-[10px]">Data Vencimento</span>
+                          <span className="font-mono font-semibold text-slate-800">
+                            {formatDueDate(a.dueDate)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Amount & Contact */}
+                      <div className="flex items-center justify-between mb-3.5">
+                        <div>
+                          <span className="text-[10px] text-slate-400 block uppercase tracking-wider">Valor da Parcela</span>
+                          <span className="text-base font-bold text-slate-900 font-mono">
+                            {formatCurrencyMT(a.installmentAmount)}
+                          </span>
+                        </div>
+
+                        {a.clientPhone && (
+                          <a
+                            href={`tel:${a.clientPhone}`}
+                            id={`btn-call-client-${a.creditId}-${a.installmentNumber}`}
+                            className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border border-slate-200 text-[11px] font-semibold transition-colors"
+                            title={`Ligar para ${a.clientPhone}`}
+                          >
+                            <Phone className="w-3 h-3 text-emerald-600" />
+                            <span>{a.clientPhone}</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="pt-2.5 border-t border-slate-100 flex items-center space-x-2">
+                      <button
+                        id={`btn-pay-alert-${a.creditId}-${a.installmentNumber}`}
+                        onClick={() => handlePayInstallment(a)}
+                        className="flex-1 py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors shadow-xs"
+                      >
+                        <CreditCard className="w-3 h-3" />
+                        <span>Registar Pagamento</span>
+                      </button>
+
+                      <button
+                        id={`btn-view-credit-alert-${a.creditId}-${a.installmentNumber}`}
+                        onClick={() => onNavigateTab('credits')}
+                        className="p-1.5 rounded-lg border border-slate-200 hover:border-slate-300 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
+                        title="Ver ficha do crédito"
+                      >
+                        <ArrowUpRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-8 text-center rounded-xl bg-slate-50/70 border border-slate-200/70 flex flex-col items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mb-3">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <h3 className="text-sm font-bold text-slate-900 mb-1">
+                {alertFilter === '7days'
+                  ? 'Nenhum crédito com parcela a vencer nos próximos 7 dias'
+                  : alertFilter === 'overdue'
+                  ? 'Nenhuma parcela em atraso identificada'
+                  : 'Nenhuma parcela pendente registada'}
+              </h3>
+              <p className="text-xs text-slate-500 max-w-md mb-4">
+                {alertFilter === '7days'
+                  ? 'Todas as obrigações da carteira para os próximos 7 dias estão em dia. O gestor pode acompanhar as próximas datas na aba de Créditos ou emitir relatórios.'
+                  : alertFilter === 'overdue'
+                  ? 'A carteira de microcrédito apresenta excelente disciplina e assiduidade nos reembolsos.'
+                  : 'Todos os empréstimos concedidos foram integralmente liquidados ou não existem amortizações ativas.'}
+              </p>
+              {alertFilter !== '7days' && (
+                <button
+                  onClick={() => setAlertFilter('7days')}
+                  className="text-xs font-semibold text-emerald-700 hover:underline flex items-center space-x-1"
+                >
+                  <span>Voltar aos alertas dos próximos 7 dias</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* Main Grid: Pending Credits & Recent Payments */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

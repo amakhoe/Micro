@@ -94,6 +94,11 @@ export function generateSeedCreditsAndPayments(clientsWithIds: Client[]): {
   inst1[1].paymentMethod = 'm-pesa';
   inst1[1].paymentRef = 'MP-910244';
 
+  // Dynamic due dates for upcoming demo alerts within the next 7 days
+  const upcomingDue1 = new Date();
+  upcomingDue1.setDate(upcomingDue1.getDate() + 3);
+  inst1[2].dueDate = upcomingDue1.toISOString().split('T')[0];
+
   const paidAmount1 = inst1[0].amount + inst1[1].amount;
   const cred1: Omit<CreditApplication, 'id'> = {
     clientId: c1.id,
@@ -164,6 +169,13 @@ export function generateSeedCreditsAndPayments(clientsWithIds: Client[]): {
     inst3[0].paidAt = '2026-09-20T11:00:00.000Z';
     inst3[0].paymentMethod = 'e-mola';
     inst3[0].paymentRef = 'EM-44910';
+
+    // Upcoming due date within 6 days for Fátima Sulemane
+    const upcomingDue2 = new Date();
+    upcomingDue2.setDate(upcomingDue2.getDate() + 6);
+    if (inst3[1]) {
+      inst3[1].dueDate = upcomingDue2.toISOString().split('T')[0];
+    }
 
     credits.push({
       clientId: c3.id,

@@ -168,7 +168,7 @@ export const ClientModal: React.FC<ClientModalProps> = ({
             {/* Nome */}
             <div className="md:col-span-2">
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Nome Completo do Empreendedor *
+                Nome Completo do Cliente *
               </label>
               <div className="relative">
                 <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />

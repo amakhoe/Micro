@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   Calendar,
   DollarSign,
+  Coins,
   Briefcase,
   UserCheck,
   CheckCircle2,
@@ -199,30 +200,33 @@ export const CreditModal: React.FC<CreditModalProps> = ({
                 </div>
               )}
 
-              {/* Amount Slider & Input */}
+              {/* Montante Solicitado (Input Type) */}
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-semibold text-slate-700">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label htmlFor="credit-amount-input" className="text-xs font-semibold text-slate-700">
                     Montante Solicitado (MT) *
                   </label>
-                  <span className="font-bold text-sm text-emerald-700 font-mono">
-                    {formatCurrencyMT(amount)}
+                  <span className="font-bold text-xs text-emerald-700 font-mono bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    {formatCurrencyMT(amount || 0)}
                   </span>
                 </div>
-                <input
-                  type="range"
-                  min="2000"
-                  max="150000"
-                  step="1000"
-                  value={amount}
-                  onChange={(e) => setAmount(Number(e.target.value))}
-                  className="w-full accent-emerald-600 h-2 bg-slate-200 rounded-lg cursor-pointer"
-                />
-                <div className="flex justify-between text-[10px] text-slate-400 mt-1">
-                  <span>2.000 MT</span>
-                  <span>50.000 MT</span>
-                  <span>100.000 MT</span>
-                  <span>150.000 MT</span>
+                <div className="relative">
+                  <Coins className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    id="credit-amount-input"
+                    type="number"
+                    required
+                    min="1000"
+                    step="500"
+                    value={amount === 0 ? '' : amount}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setAmount(val === '' ? 0 : Number(val));
+                    }}
+                    placeholder="Introduza o montante solicitado (Ex: 20000)"
+                    className="w-full pl-9 pr-12 py-2 text-xs font-semibold rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-slate-900 bg-white"
+                  />
+                  <span className="absolute right-3 top-2 text-xs font-bold text-slate-400">MT</span>
                 </div>
               </div>
 

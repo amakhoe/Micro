@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { Client, CreditApplication, PaymentRecord } from '@/types';
+import { OverdueInstallment } from './overdue-service';
 
 export function exportClientsExcel(clients: Client[], filename = 'Bayete_Clientes.xlsx') {
   const data = clients.map((c, index) => ({
@@ -154,3 +155,34 @@ export function exportCompletePortfolioExcel(
 
   XLSX.writeFile(workbook, filename);
 }
+
+export function exportOverdueExcel(
+  overdueList: OverdueInstallment[],
+  filename = `Bayete_Pagamentos_Atraso_${new Date().toISOString().split('T')[0]}.xlsx`
+) {
+  const data = overdueList.map((item, index) => ({
+    '#': index + 1,
+    'Nome do Cliente': item.clientName,
+    'Telemóvel': item.clientPhone,
+    'Email': item.clientEmail,
+    'Residência': item.clientAddress,
+    'BI': item.clientBi,
+    'ID Crédito': item.creditId.slice(0, 8),
+    'Parcela Nº': item.installmentNumber,
+    'Total Parcelas': item.totalInstallments,
+    'Data de Vencimento': item.dueDate,
+    'Dias em Atraso': item.daysOverdue,
+    'Gravidade': item.severity.toUpperCase(),
+    'Valor Parcela (MT)': item.installmentAmount,
+    'Multa / Juros Mora (MT)': item.penaltyFee,
+    'Total Devido (MT)': item.totalDue,
+    'Saldo Devedor Restante (MT)': item.remainingBalance,
+    'Finalidade do Empréstimo': item.loanPurpose,
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(data);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Parcelas em Atraso');
+  XLSX.writeFile(workbook, filename);
+}
+

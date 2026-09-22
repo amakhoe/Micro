@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
-import { Navbar } from '@/components/Navbar';
+import { Sidebar } from '@/components/Sidebar';
 import { AuthModal } from '@/components/AuthModal';
 import { DashboardView } from '@/components/DashboardView';
 import { ClientsView } from '@/components/ClientsView';
@@ -12,6 +12,7 @@ import { ReportsView } from '@/components/ReportsView';
 import { ClientModal } from '@/components/ClientModal';
 import { CreditModal } from '@/components/CreditModal';
 import { PaymentModal } from '@/components/PaymentModal';
+import { AdminProfileModal } from '@/components/AdminProfileModal';
 import { Client, CreditApplication, PaymentRecord } from '@/types';
 import {
   fetchClients,
@@ -51,6 +52,8 @@ function BayeteApp() {
 
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [preselectedPaymentCreditId, setPreselectedPaymentCreditId] = useState<string | undefined>(undefined);
+
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   // Notification Toast State
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -212,7 +215,7 @@ function BayeteApp() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100/70 text-slate-900 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-100/70 text-slate-900 flex flex-col md:flex-row font-sans">
       {/* Toast notification banner */}
       {toastMessage && (
         <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-3 duration-300">
@@ -235,8 +238,8 @@ function BayeteApp() {
         </div>
       )}
 
-      {/* Main Top Navigation */}
-      <Navbar
+      {/* Main Sidebar (Desktop fixed left & Mobile header/drawer) */}
+      <Sidebar
         currentTab={currentTab}
         onTabChange={setCurrentTab}
         onOpenNewClient={() => {
@@ -249,12 +252,17 @@ function BayeteApp() {
         }}
         onSeedData={handleSeedData}
         onClearAllData={() => setIsClearConfirmOpen(true)}
+        onOpenProfile={() => setIsProfileModalOpen(true)}
         isSeeding={isSeeding}
         hasData={clients.length > 0 || credits.length > 0 || payments.length > 0}
+        clientsCount={clients.length}
+        creditsCount={credits.length}
+        paymentsCount={payments.length}
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {isLoadingData ? (
           <div className="py-24 flex flex-col items-center justify-center text-slate-500">
             <Loader2 className="w-7 h-7 text-emerald-600 animate-spin mb-2" />
@@ -279,7 +287,9 @@ function BayeteApp() {
                   setPreselectedPaymentCreditId(undefined);
                   setIsPaymentModalOpen(true);
                 }}
+                onOpenPaymentForCredit={handleOpenPaymentForCredit}
                 onNavigateTab={setCurrentTab}
+                onOpenProfile={() => setIsProfileModalOpen(true)}
               />
             )}
 
@@ -328,12 +338,14 @@ function BayeteApp() {
                 payments={payments}
                 onClearAllData={() => setIsClearConfirmOpen(true)}
                 onSeedData={handleSeedData}
+                onOpenProfile={() => setIsProfileModalOpen(true)}
                 isSeeding={isSeeding}
               />
             )}
           </>
         )}
       </main>
+      </div>
 
       {/* Modals */}
       <ClientModal
@@ -366,6 +378,13 @@ function BayeteApp() {
         credits={credits}
         onRecordPayment={handleRecordPayment}
         preselectedCreditId={preselectedPaymentCreditId}
+      />
+
+      {/* Admin Profile & Credentials Modal */}
+      <AdminProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        onSuccessToast={(msg) => showToast(msg, 'success')}
       />
 
       {/* Clear Database Confirmation Modal */}

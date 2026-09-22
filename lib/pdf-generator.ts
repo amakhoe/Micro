@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Client, CreditApplication, PaymentRecord } from '@/types';
 import { formatCurrencyMT } from './credit-calculator';
+import { OverdueInstallment, OverdueSummary } from './overdue-service';
 
 // Standard styling helper for Bayete documents
 function drawHeader(doc: jsPDF, title: string, subtitle: string) {
@@ -515,3 +516,106 @@ export function generatePortfolioReportPDF(
   drawFooter(doc, 1);
   doc.save(`Bayete_Relatorio_Geral_Carteira_${new Date().toISOString().split('T')[0]}.pdf`);
 }
+
+/**
+ * PDF: Relatório Executivo de Pagamentos em Atraso & Cobrança
+ */
+export function generateOverdueReportPDF(
+  overdueList: OverdueInstallment[],
+  summary: OverdueSummary
+) {
+  const doc = new jsPDF();
+  drawHeader(
+    doc,
+    'RELATÓRIO OFICIAL DE PAGAMENTOS EM ATRASO & RECUPERAÇÃO DE CRÉDITO',
+    'Auditoria de Inadimplência, Carteira em Risco (PAR) e Gestão de Cobrança'
+  );
+
+  let y = 50;
+
+  // Metric Cards
+  const kpis = [
+    { title: 'Capital em Atraso', val: formatCurrencyMT(summary.totalPrincipalOverdue), color: [185, 28, 28] },
+    { title: 'Juros Mora / Multas', val: formatCurrencyMT(summary.totalPenaltyFees), color: [194, 65, 12] },
+    { title: 'Total a Regularizar', val: formatCurrencyMT(summary.totalAmountDue), color: [6, 78, 59] },
+    { title: 'PAR / Taxa de Risco', val: `${summary.parRate}%`, color: [99, 102, 241] },
+  ];
+
+  const boxWidth = 42;
+  kpis.forEach((m, idx) => {
+    const bx = 14 + idx * (boxWidth + 5);
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(bx, y, boxWidth, 22, 1.5, 1.5, 'FD');
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(100, 116, 139);
+    doc.text(m.title, bx + 3, y + 7);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(m.color[0], m.color[1], m.color[2]);
+    doc.text(m.val, bx + 3, y + 16);
+  });
+
+  y += 28;
+
+  // Aging bracket summary
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text('ESTRATIFICAÇÃO TEMPORAL DA MORA', 14, y);
+
+  const bracketsTable = [
+    ['1 a 15 Dias (Leve)', `${summary.brackets.leve.count} parcelas`, formatCurrencyMT(summary.brackets.leve.amount), 'Lembrete SMS / WhatsApp'],
+    ['16 a 30 Dias (Médio)', `${summary.brackets.medio.count} parcelas`, formatCurrencyMT(summary.brackets.medio.amount), 'Contacto Telefónico Direto'],
+    ['31 a 60 Dias (Grave)', `${summary.brackets.grave.count} parcelas`, formatCurrencyMT(summary.brackets.grave.amount), 'Notificação Escrita e Visita'],
+    ['+60 Dias (Crítico)', `${summary.brackets.critico.count} parcelas`, formatCurrencyMT(summary.brackets.critico.amount), 'Contencioso / Garantias'],
+  ];
+
+  autoTable(doc, {
+    startY: y + 3,
+    head: [['Faixa de Atraso', 'Qtd.', 'Montante (MT)', 'Procedimento']],
+    body: bracketsTable,
+    headStyles: { fillColor: [51, 65, 85], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5 },
+    bodyStyles: { fontSize: 7, textColor: [30, 41, 59] },
+    margin: { left: 14, right: 14 },
+  });
+
+  // Next section: Detailed table
+  // @ts-expect-error autoTable adds lastAutoTable to doc
+  const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 8 : y + 35;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`CLIENTES COM PARCELAS EM ATRASO (${overdueList.length})`, 14, finalY);
+
+  const detailRows = overdueList.map((item, index) => [
+    (index + 1).toString(),
+    item.clientName,
+    item.clientPhone,
+    item.clientBi,
+    `#${item.installmentNumber}/${item.totalInstallments}`,
+    item.dueDate,
+    `${item.daysOverdue} d`,
+    formatCurrencyMT(item.installmentAmount),
+    formatCurrencyMT(item.penaltyFee),
+    formatCurrencyMT(item.totalDue),
+  ]);
+
+  autoTable(doc, {
+    startY: finalY + 3,
+    head: [['#', 'Cliente', 'Telemóvel', 'BI', 'Parc.', 'Venc.', 'Dias', 'Capital', 'Multa', 'Exigível']],
+    body: detailRows.length > 0 ? detailRows : [['-', 'Nenhum atraso registado', '-', '-', '-', '-', '-', '-', '-', '-']],
+    headStyles: { fillColor: [185, 28, 28], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7 },
+    bodyStyles: { fontSize: 6.5, textColor: [30, 41, 59] },
+    alternateRowStyles: { fillColor: [254, 242, 242] },
+    margin: { left: 14, right: 14 },
+  });
+
+  drawFooter(doc, 1);
+  doc.save(`Bayete_Relatorio_Pagamentos_Atraso_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
