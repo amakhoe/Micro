@@ -25,10 +25,13 @@ export interface AdminProfilePayload {
 
 export type ExtendedUser = User & {
   phoneNumber?: string | null;
+  role?: 'admin' | 'viewer';
 };
 
 interface AuthContextType {
   user: ExtendedUser | null;
+  isAdmin: boolean;
+  isViewer: boolean;
   loading: boolean;
   login: (email: string, pass: string) => Promise<void>;
   register: (email: string, pass: string, name: string) => Promise<void>;
@@ -46,7 +49,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<ExtendedUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -84,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               if (data.displayName) enhancedUser.displayName = data.displayName;
               if (data.phoneNumber) enhancedUser.phoneNumber = data.phoneNumber;
               if (data.email) enhancedUser.email = data.email;
+              if (data.role) enhancedUser.role = data.role;
             }
           } catch {
             // Non-blocking Firestore read
@@ -167,6 +171,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (data.photoURL) enhancedUser.photoURL = data.photoURL;
           if (data.phoneNumber) enhancedUser.phoneNumber = data.phoneNumber;
           if (data.email) enhancedUser.email = data.email;
+          if (data.role) enhancedUser.role = data.role;
         } else {
           // Store initial record in Firestore user_profiles collection
           await setDoc(
@@ -255,6 +260,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: demoEmail,
           displayName: demoName,
           emailVerified: true,
+          role: role === 'gestor' ? 'admin' : 'viewer',
           photoURL: role === 'gestor'
             ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
             : 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
@@ -437,10 +443,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   };
 
+  const isAdmin = user ? (user.role === 'viewer' ? false : true) : false;
+  const isViewer = user ? user.role === 'viewer' : false;
+
   return (
     <AuthContext.Provider
       value={{
         user,
+        isAdmin,
+        isViewer,
         loading,
         login,
         register,

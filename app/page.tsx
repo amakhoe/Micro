@@ -13,6 +13,7 @@ import { ClientModal } from '@/components/ClientModal';
 import { CreditModal } from '@/components/CreditModal';
 import { PaymentModal } from '@/components/PaymentModal';
 import { AdminProfileModal } from '@/components/AdminProfileModal';
+import { UserManagementModal } from '@/components/UserManagementModal';
 import { Client, CreditApplication, PaymentRecord } from '@/types';
 import {
   fetchClients,
@@ -29,7 +30,7 @@ import {
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 function BayeteApp() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isAdmin, isViewer } = useAuth();
 
   const [currentTab, setCurrentTab] = useState<'dashboard' | 'clients' | 'credits' | 'payments' | 'reports'>('dashboard');
 
@@ -51,6 +52,7 @@ function BayeteApp() {
   const [preselectedPaymentCreditId, setPreselectedPaymentCreditId] = useState<string | undefined>(undefined);
 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isUsersModalOpen, setIsUsersModalOpen] = useState(false);
 
   // Notification Toast State
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -105,36 +107,56 @@ function BayeteApp() {
 
   // Client Handlers
   const handleSaveClient = async (clientData: Omit<Client, 'id'>) => {
+    if (!isAdmin) {
+      showToast('Acesso negado: Apenas o administrador pode criar ou alterar dados de clientes.', 'error');
+      return;
+    }
     if (clientToEdit) {
       await updateClientDoc(clientToEdit.id, clientData);
       setClients((prev) => prev.map((c) => (c.id === clientToEdit.id ? { ...c, ...clientData } : c)));
-      showToast('Dados do empreendedor atualizados com sucesso!');
+      showToast('Dados do cliente atualizados com sucesso!');
     } else {
       const newClient = await addClientDoc(clientData);
       setClients((prev) => [newClient, ...prev]);
-      showToast('Novo empreendedor cadastrado com sucesso no Firebase!');
+      showToast('Novo cliente cadastrado com sucesso no Firebase!');
     }
     setClientToEdit(null);
   };
 
   const handleDeleteClient = async (id: string) => {
+    if (!isAdmin) {
+      showToast('Acesso negado: Apenas o administrador pode remover clientes.', 'error');
+      return;
+    }
     await deleteClientDoc(id);
     setClients((prev) => prev.filter((c) => c.id !== id));
-    showToast('Empreendedor removido da base de dados.');
+    showToast('Cliente removido da base de dados.');
   };
 
   const handleOpenEditClient = (client: Client) => {
+    if (!isAdmin) {
+      showToast('Apenas o administrador tem permissão para editar dados.', 'error');
+      return;
+    }
     setClientToEdit(client);
     setIsClientModalOpen(true);
   };
 
   const handleOpenNewCreditForClient = (clientId: string) => {
+    if (!isAdmin) {
+      showToast('Apenas o administrador pode criar novas propostas de crédito.', 'error');
+      return;
+    }
     setPreselectedCreditClientId(clientId);
     setIsCreditModalOpen(true);
   };
 
   // Credit Handlers
   const handleSaveCredit = async (creditData: Omit<CreditApplication, 'id'>) => {
+    if (!isAdmin) {
+      showToast('Acesso negado: Apenas o administrador pode criar propostas de crédito.', 'error');
+      return;
+    }
     const newCredit = await addCreditDoc(creditData);
     setCredits((prev) => [newCredit, ...prev]);
     showToast('Proposta de microcrédito registada com sucesso!');
@@ -145,6 +167,10 @@ function BayeteApp() {
     status: CreditApplication['status'],
     notes?: string
   ) => {
+    if (!isAdmin) {
+      showToast('Acesso negado: Apenas o administrador pode alterar o estado ou aprovar créditos.', 'error');
+      return;
+    }
     await updateCreditStatusDoc(id, status, notes);
     setCredits((prev) =>
       prev.map((c) => (c.id === id ? { ...c, status, ...(notes ? { analystNotes: notes } : {}) } : c))
@@ -160,6 +186,10 @@ function BayeteApp() {
     method: PaymentRecord['paymentMethod'],
     notes: string
   ) => {
+    if (!isAdmin) {
+      showToast('Acesso negado: Apenas o administrador pode registar pagamentos.', 'error');
+      throw new Error('Apenas o administrador tem permissão para registar pagamentos.');
+    }
     const result = await recordPaymentDoc(
       credit,
       installmentNumber,
@@ -231,6 +261,7 @@ function BayeteApp() {
         }}
         onSeedData={handleSeedData}
         onOpenProfile={() => setIsProfileModalOpen(true)}
+        onOpenUsersManagement={() => setIsUsersModalOpen(true)}
         isSeeding={isSeeding}
         hasData={clients.length > 0 || credits.length > 0 || payments.length > 0}
         clientsCount={clients.length}
@@ -361,6 +392,14 @@ function BayeteApp() {
       <AdminProfileModal
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
+        onSuccessToast={(msg) => showToast(msg, 'success')}
+        onOpenUsersManagement={() => setIsUsersModalOpen(true)}
+      />
+
+      {/* User Management & RBAC Modal */}
+      <UserManagementModal
+        isOpen={isUsersModalOpen}
+        onClose={() => setIsUsersModalOpen(false)}
         onSuccessToast={(msg) => showToast(msg, 'success')}
       />
     </div>

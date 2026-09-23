@@ -81,9 +81,24 @@ export interface PaymentRecord {
   createdAt: string;
 }
 
+export type UserRole = 'admin' | 'viewer';
+
+export interface AppUser {
+  uid: string;
+  email: string;
+  displayName: string;
+  role: UserRole;
+  phoneNumber?: string | null;
+  photoURL?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  createdBy?: string;
+  status?: 'ativo' | 'inativo';
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
-  role: 'gestor' | 'analista' | 'agente';
+  role: 'admin' | 'viewer';
 }

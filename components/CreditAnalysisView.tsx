@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { useAuth } from '@/lib/auth-context';
 import { CreditApplication, Client } from '@/types';
 import { formatCurrencyMT } from '@/lib/credit-calculator';
 import { exportCreditsExcel } from '@/lib/excel-generator';
@@ -22,6 +23,7 @@ import {
   ChevronUp,
   CreditCard,
   Download,
+  Lock,
 } from 'lucide-react';
 
 interface CreditAnalysisViewProps {
@@ -43,6 +45,7 @@ export const CreditAnalysisView: React.FC<CreditAnalysisViewProps> = ({
   onUpdateCreditStatus,
   onOpenPaymentForCredit,
 }) => {
+  const { isAdmin } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'todos' | 'pendente' | 'aprovado' | 'desembolsado' | 'liquidado' | 'recusado'>('todos');
   const [expandedCreditId, setExpandedCreditId] = useState<string | null>(null);
@@ -163,14 +166,24 @@ export const CreditAnalysisView: React.FC<CreditAnalysisViewProps> = ({
             <span>Exportar Excel</span>
           </button>
 
-          <button
-            id="btn-new-credit-proposal"
-            onClick={onOpenNewCredit}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Nova Proposta de Crédito</span>
-          </button>
+          {isAdmin ? (
+            <button
+              id="btn-new-credit-proposal"
+              onClick={onOpenNewCredit}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Nova Proposta de Crédito</span>
+            </button>
+          ) : (
+            <span
+              className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-lg bg-slate-100 border border-slate-200 text-slate-500 text-xs font-medium"
+              title="Apenas o Administrador pode submeter novas propostas"
+            >
+              <Lock className="w-3.5 h-3.5 text-slate-400" />
+              <span>Modo Consulta</span>
+            </span>
+          )}
         </div>
       </div>
 
@@ -302,46 +315,51 @@ export const CreditAnalysisView: React.FC<CreditAnalysisViewProps> = ({
                     <span>Contrato PDF</span>
                   </button>
 
-                  {/* If Pending -> Approve or Reject */}
-                  {cr.status === 'pendente' && (
+                  {/* Admin-only Workflow Transitions */}
+                  {isAdmin && (
                     <>
-                      <button
-                        onClick={() => onUpdateCreditStatus(cr.id, 'aprovado')}
-                        className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-medium transition-colors"
-                      >
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>Aprovar</span>
-                      </button>
-                      <button
-                        onClick={() => onUpdateCreditStatus(cr.id, 'recusado', 'Risco incompatível')}
-                        className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-md border border-rose-300 bg-white hover:bg-rose-50 text-rose-700 text-[11px] font-medium transition-colors"
-                      >
-                        <XCircle className="w-3 h-3" />
-                        <span>Recusar</span>
-                      </button>
+                      {/* If Pending -> Approve or Reject */}
+                      {cr.status === 'pendente' && (
+                        <>
+                          <button
+                            onClick={() => onUpdateCreditStatus(cr.id, 'aprovado')}
+                            className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-medium transition-colors"
+                          >
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>Aprovar</span>
+                          </button>
+                          <button
+                            onClick={() => onUpdateCreditStatus(cr.id, 'recusado', 'Risco incompatível')}
+                            className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-md border border-rose-300 bg-white hover:bg-rose-50 text-rose-700 text-[11px] font-medium transition-colors"
+                          >
+                            <XCircle className="w-3 h-3" />
+                            <span>Recusar</span>
+                          </button>
+                        </>
+                      )}
+
+                      {/* If Approved -> Disburse */}
+                      {cr.status === 'aprovado' && (
+                        <button
+                          onClick={() => onUpdateCreditStatus(cr.id, 'desembolsado')}
+                          className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-medium transition-colors"
+                        >
+                          <Send className="w-3 h-3" />
+                          <span>Desembolsar / Ativar</span>
+                        </button>
+                      )}
+
+                      {/* If Disbursed -> Register Payment */}
+                      {cr.status === 'desembolsado' && (
+                        <button
+                          onClick={() => onOpenPaymentForCredit(cr.id)}
+                          className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-medium transition-colors"
+                        >
+                          <CreditCard className="w-3 h-3" />
+                          <span>Registar Pagamento</span>
+                        </button>
+                      )}
                     </>
-                  )}
-
-                  {/* If Approved -> Disburse */}
-                  {cr.status === 'aprovado' && (
-                    <button
-                      onClick={() => onUpdateCreditStatus(cr.id, 'desembolsado')}
-                      className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-medium transition-colors"
-                    >
-                      <Send className="w-3 h-3" />
-                      <span>Desembolsar / Ativar</span>
-                    </button>
-                  )}
-
-                  {/* If Disbursed -> Register Payment */}
-                  {cr.status === 'desembolsado' && (
-                    <button
-                      onClick={() => onOpenPaymentForCredit(cr.id)}
-                      className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-medium transition-colors"
-                    >
-                      <CreditCard className="w-3 h-3" />
-                      <span>Registar Pagamento</span>
-                    </button>
                   )}
                 </div>
               </div>

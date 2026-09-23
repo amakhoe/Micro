@@ -16,20 +16,23 @@ import {
   Loader2,
   Trash2,
   AlertCircle,
+  UserPlus,
 } from 'lucide-react';
 
 interface AdminProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccessToast?: (msg: string) => void;
+  onOpenUsersManagement?: () => void;
 }
 
 export const AdminProfileModal: React.FC<AdminProfileModalProps> = ({
   isOpen,
   onClose,
   onSuccessToast,
+  onOpenUsersManagement,
 }) => {
-  const { user, updateUserProfile, changeUserPassword } = useAuth();
+  const { user, updateUserProfile, changeUserPassword, isAdmin } = useAuth();
 
   // Exactly the 5 requested fields:
   // 1. Foto de perfil (disposta pelo utilizador)
@@ -417,6 +420,28 @@ export const AdminProfileModal: React.FC<AdminProfileModalProps> = ({
               </div>
             )}
           </div>
+
+          {/* Quick link to User Management (if Admin) */}
+          {isAdmin && onOpenUsersManagement && (
+            <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-3.5 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-slate-800">Controlo de Utilizadores</p>
+                <p className="text-[11px] text-slate-500">Adicionar mais utilizadores no sistema (apenas leitura ou admin)</p>
+              </div>
+              <button
+                type="button"
+                id="btn-profile-to-users"
+                onClick={() => {
+                  onClose();
+                  onOpenUsersManagement();
+                }}
+                className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium flex items-center space-x-1.5 shadow-sm transition-colors shrink-0"
+              >
+                <UserPlus className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Gerir Utilizadores</span>
+              </button>
+            </div>
+          )}
 
           {/* Action buttons */}
           <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-200">

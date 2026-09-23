@@ -18,6 +18,7 @@ import {
   Menu,
   X,
   PlusCircle,
+  Eye,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -27,6 +28,7 @@ interface SidebarProps {
   onOpenNewCredit: () => void;
   onSeedData: () => void;
   onOpenProfile?: () => void;
+  onOpenUsersManagement?: () => void;
   isSeeding: boolean;
   hasData: boolean;
   clientsCount?: number;
@@ -41,13 +43,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenNewCredit,
   onSeedData,
   onOpenProfile,
+  onOpenUsersManagement,
   isSeeding,
   hasData,
   clientsCount,
   creditsCount,
   paymentsCount,
 }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin, isViewer } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const getInitials = (name?: string | null) => {
@@ -112,29 +115,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Quick Action CTAs */}
       <div className="p-4 space-y-2 border-b border-slate-800/80">
-        <button
-          id="btn-sidebar-new-credit"
-          onClick={() => {
-            onOpenNewCredit();
-            setIsMobileOpen(false);
-          }}
-          className="w-full inline-flex items-center justify-center space-x-2 py-2.5 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-950/40 hover:shadow-emerald-900/50 transition-all group"
-        >
-          <PlusCircle className="w-4 h-4 text-emerald-100 group-hover:rotate-90 transition-transform duration-200" />
-          <span>Simular Novo Crédito</span>
-        </button>
+        {isAdmin ? (
+          <>
+            <button
+              id="btn-sidebar-new-credit"
+              onClick={() => {
+                onOpenNewCredit();
+                setIsMobileOpen(false);
+              }}
+              className="w-full inline-flex items-center justify-center space-x-2 py-2.5 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-950/40 hover:shadow-emerald-900/50 transition-all group"
+            >
+              <PlusCircle className="w-4 h-4 text-emerald-100 group-hover:rotate-90 transition-transform duration-200" />
+              <span>Simular Novo Crédito</span>
+            </button>
 
-        <button
-          id="btn-sidebar-new-client"
-          onClick={() => {
-            onOpenNewClient();
-            setIsMobileOpen(false);
-          }}
-          className="w-full inline-flex items-center justify-center space-x-2 py-2 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700/80 border border-slate-700/80 text-slate-200 text-xs font-medium transition-all"
-        >
-          <UserPlus className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Cadastrar Novo Cliente</span>
-        </button>
+            <button
+              id="btn-sidebar-new-client"
+              onClick={() => {
+                onOpenNewClient();
+                setIsMobileOpen(false);
+              }}
+              className="w-full inline-flex items-center justify-center space-x-2 py-2 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700/80 border border-slate-700/80 text-slate-200 text-xs font-medium transition-all"
+            >
+              <UserPlus className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Cadastrar Novo Cliente</span>
+            </button>
+          </>
+        ) : (
+          <div className="bg-slate-800/80 border border-slate-700/80 rounded-xl p-3 text-center">
+            <span className="inline-flex items-center space-x-1.5 text-xs text-amber-300 font-semibold">
+              <Eye className="w-3.5 h-3.5 text-amber-400" />
+              <span>Modo Apenas Leitura</span>
+            </span>
+            <p className="text-[10px] text-slate-400 mt-1 leading-tight">
+              Apenas o administrador pode criar ou alterar documentos.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Navigation Links */}
@@ -177,8 +194,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* System & Data Tools */}
         <div className="pt-5 px-3 mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-t border-slate-800/80 mt-4">
-          Base de Dados & Sistema
+          Acessos & Sistema
         </div>
+
+        {isAdmin && onOpenUsersManagement && (
+          <button
+            id="btn-sidebar-manage-users"
+            onClick={() => {
+              onOpenUsersManagement();
+              setIsMobileOpen(false);
+            }}
+            className="w-full flex items-center space-x-2.5 px-3.5 py-2.5 rounded-xl text-xs font-medium text-emerald-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-emerald-500/20 hover:border-emerald-500/40 transition-all shadow-sm mb-1.5"
+            title="Adicionar e gerir mais utilizadores no sistema"
+          >
+            <UserPlus className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span className="truncate">Adicionar Utilizadores</span>
+          </button>
+        )}
 
         {!hasData && (
           <button
@@ -208,7 +240,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               setIsMobileOpen(false);
             }}
             className="flex items-center space-x-2.5 py-1.5 px-2 rounded-xl hover:bg-slate-800 border border-transparent hover:border-slate-700/80 transition-all text-left flex-1 min-w-0 group"
-            title="Editar perfil de administrador (nome, email, telemóvel, password, foto)"
+            title="Editar perfil de utilizador (nome, email, telemóvel, password, foto)"
           >
             <div className="relative shrink-0">
               {user?.photoURL ? (
@@ -227,12 +259,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <div className="truncate flex-1 min-w-0">
               <p className="text-xs font-semibold text-slate-200 group-hover:text-emerald-300 leading-tight truncate flex items-center space-x-1">
-                <span className="truncate">{user?.displayName || user?.email?.split('@')[0] || 'Administrador'}</span>
+                <span className="truncate">{user?.displayName || user?.email?.split('@')[0] || 'Utilizador'}</span>
                 <Settings className="w-3 h-3 text-slate-400 group-hover:text-emerald-400 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
               </p>
-              <p className="text-[10px] text-emerald-400/90 leading-tight flex items-center space-x-1 mt-0.5">
-                <ShieldCheck className="w-2.5 h-2.5" />
-                <span>Admin • Editar Perfil</span>
+              <p className="text-[10px] leading-tight flex items-center space-x-1 mt-0.5">
+                {isAdmin ? (
+                  <>
+                    <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
+                    <span className="text-emerald-400/90 font-medium">Admin • Perfil</span>
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-2.5 h-2.5 text-amber-400" />
+                    <span className="text-amber-300 font-medium">Leitor • Sem Edição</span>
+                  </>
+                )}
               </p>
             </div>
           </button>

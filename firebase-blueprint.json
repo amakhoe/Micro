@@ -1,0 +1,85 @@
+{
+  "entities": {
+    "Client": {
+      "title": "Client",
+      "description": "Registo cadastral de cliente e mutuário de microcrédito",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "address": { "type": "string" },
+        "bi": { "type": "string" },
+        "nuit": { "type": "string" },
+        "salary": { "type": "number" },
+        "profession": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "phone", "bi"]
+    },
+    "CreditApplication": {
+      "title": "CreditApplication",
+      "description": "Proposta de microcrédito, análise financeira e plano de amortizações",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "requestedAmount": { "type": "number" },
+        "termMonths": { "type": "number" },
+        "interestRate": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["clientId", "clientName", "requestedAmount", "status"]
+    },
+    "PaymentRecord": {
+      "title": "PaymentRecord",
+      "description": "Registo de pagamento de amortização efetuado",
+      "type": "object",
+      "properties": {
+        "creditId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "installmentNumber": { "type": "number" },
+        "amountPaid": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "receiptNumber": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["creditId", "amountPaid", "receiptNumber"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Perfil de utilizador e controlo de acessos (RBAC)",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "viewer"] },
+        "phoneNumber": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "/clients/{clientId}": {
+      "schema": "Client",
+      "description": "Coleção de clientes cadastrados no sistema"
+    },
+    "/credits/{creditId}": {
+      "schema": "CreditApplication",
+      "description": "Coleção de operações e propostas de crédito"
+    },
+    "/payments/{paymentId}": {
+      "schema": "PaymentRecord",
+      "description": "Coleção de recibos e pagamentos de parcelas"
+    },
+    "/user_profiles/{userId}": {
+      "schema": "UserProfile",
+      "description": "Coleção de perfis com permissões de utilizadores (admin vs leitor)"
+    }
+  }
+}

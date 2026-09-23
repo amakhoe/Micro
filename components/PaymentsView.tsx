@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { useAuth } from '@/lib/auth-context';
 import { PaymentRecord, CreditApplication } from '@/types';
 import { formatCurrencyMT } from '@/lib/credit-calculator';
 import { exportPaymentsExcel } from '@/lib/excel-generator';
@@ -18,6 +19,7 @@ import {
   TrendingUp,
   User,
   ArrowDownRight,
+  Lock,
 } from 'lucide-react';
 
 interface PaymentsViewProps {
@@ -31,6 +33,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   credits,
   onOpenNewPayment,
 }) => {
+  const { isAdmin } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [methodFilter, setMethodFilter] = useState<string>('todos');
 
@@ -104,14 +107,24 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
             <span>Exportar Pagamentos Excel</span>
           </button>
 
-          <button
-            id="btn-open-new-payment-modal"
-            onClick={() => onOpenNewPayment()}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Registar Pagamento</span>
-          </button>
+          {isAdmin ? (
+            <button
+              id="btn-open-new-payment-modal"
+              onClick={() => onOpenNewPayment()}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Registar Pagamento</span>
+            </button>
+          ) : (
+            <span
+              className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-lg bg-slate-100 border border-slate-200 text-slate-500 text-xs font-medium"
+              title="Apenas o Administrador pode registar pagamentos"
+            >
+              <Lock className="w-3.5 h-3.5 text-slate-400" />
+              <span>Modo Consulta</span>
+            </span>
+          )}
         </div>
       </div>
 

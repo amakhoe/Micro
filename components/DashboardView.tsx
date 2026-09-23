@@ -30,6 +30,8 @@ import {
   ArrowRight,
   ChevronRight,
   ShieldAlert,
+  Eye,
+  Lock,
 } from 'lucide-react';
 
 export interface DueAlertItem {
@@ -70,7 +72,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNavigateTab,
   onOpenProfile,
 }) => {
-  const { user } = useAuth();
+  const { user, isAdmin, isViewer } = useAuth();
   const [alertFilter, setAlertFilter] = useState<'7days' | 'overdue' | 'all'>('7days');
 
   // Compute pending installment alerts
@@ -294,6 +296,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
+      {/* Read-Only Notice Banner for Viewer role */}
+      {isViewer && (
+        <div className="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-4 text-amber-950 flex items-center space-x-3 shadow-xs">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center shrink-0">
+            <Eye className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-xs font-bold text-amber-900 flex items-center space-x-1.5">
+              <span>Sessão em Modo de Apenas Leitura</span>
+              <span className="text-[10px] uppercase font-semibold px-2 py-0.2 rounded-full bg-amber-200/60 text-amber-800">
+                Consulta Ativa
+              </span>
+            </h3>
+            <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+              Você tem permissão para visualizar indicadores, carteira de clientes, cronogramas de amortização e exportar relatórios. <strong>Apenas o administrador do sistema pode criar, editar ou registar novos documentos</strong>.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Fresh/Empty State Welcome Banner */}
       {clients.length === 0 && credits.length === 0 && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 text-emerald-950 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -309,13 +331,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
           <div className="flex items-center space-x-2 shrink-0">
-            <button
-              onClick={onOpenNewClient}
-              className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors flex items-center space-x-1.5"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Cadastrar Primeiro Cliente</span>
-            </button>
+            {isAdmin ? (
+              <button
+                onClick={onOpenNewClient}
+                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors flex items-center space-x-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Cadastrar Primeiro Cliente</span>
+              </button>
+            ) : (
+              <span className="text-xs font-medium text-slate-500 bg-white px-3 py-1.5 rounded-lg border border-slate-200 flex items-center space-x-1">
+                <Lock className="w-3.5 h-3.5 text-slate-400" />
+                <span>Criação reservada ao Administrador</span>
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -739,14 +768,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                     {/* Action Buttons */}
                     <div className="pt-2.5 border-t border-slate-100 flex items-center space-x-2">
-                      <button
-                        id={`btn-pay-alert-${a.creditId}-${a.installmentNumber}`}
-                        onClick={() => handlePayInstallment(a)}
-                        className="flex-1 py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors shadow-xs"
-                      >
-                        <CreditCard className="w-3 h-3" />
-                        <span>Registar Pagamento</span>
-                      </button>
+                      {isAdmin ? (
+                        <button
+                          id={`btn-pay-alert-${a.creditId}-${a.installmentNumber}`}
+                          onClick={() => handlePayInstallment(a)}
+                          className="flex-1 py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors shadow-xs"
+                        >
+                          <CreditCard className="w-3 h-3" />
+                          <span>Registar Pagamento</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => onNavigateTab('credits')}
+                          className="flex-1 py-1.5 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium flex items-center justify-center space-x-1.5 transition-colors"
+                        >
+                          <Eye className="w-3 h-3 text-slate-500" />
+                          <span>Consultar Detalhes</span>
+                        </button>
+                      )}
 
                       <button
                         id={`btn-view-credit-alert-${a.creditId}-${a.installmentNumber}`}

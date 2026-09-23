@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { useAuth } from '@/lib/auth-context';
 import { Client, CreditApplication } from '@/types';
 import { formatCurrencyMT } from '@/lib/credit-calculator';
 import { exportClientsExcel } from '@/lib/excel-generator';
@@ -22,6 +23,7 @@ import {
   Briefcase,
   ExternalLink,
   Download,
+  Lock,
 } from 'lucide-react';
 
 interface ClientsViewProps {
@@ -41,6 +43,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
   onDeleteClient,
   onNewCreditForClient,
 }) => {
+  const { isAdmin } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'todos' | 'ativo' | 'em_analise' | 'bloqueado'>('todos');
   const [selectedClientForDetails, setSelectedClientForDetails] = useState<Client | null>(null);
@@ -94,14 +97,24 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
             <span>Exportar Excel</span>
           </button>
 
-          <button
-            id="btn-add-new-client"
-            onClick={onOpenNewClient}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Novo Cliente</span>
-          </button>
+          {isAdmin ? (
+            <button
+              id="btn-add-new-client"
+              onClick={onOpenNewClient}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Novo Cliente</span>
+            </button>
+          ) : (
+            <span
+              className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-lg bg-slate-100 border border-slate-200 text-slate-500 text-xs font-medium"
+              title="Apenas o Administrador pode registar novos clientes"
+            >
+              <Lock className="w-3.5 h-3.5 text-slate-400" />
+              <span>Modo Consulta</span>
+            </span>
+          )}
         </div>
       </div>
 
@@ -225,16 +238,18 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                     {/* Ações */}
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end space-x-1">
-                        {/* Nova proposta de crédito */}
-                        <button
-                          onClick={() => onNewCreditForClient(client.id)}
-                          title="Solicitar Novo Microcrédito"
-                          className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
-                        >
-                          <TrendingUp className="w-3.5 h-3.5" />
-                        </button>
+                        {/* Nova proposta de crédito (Admin apenas) */}
+                        {isAdmin && (
+                          <button
+                            onClick={() => onNewCreditForClient(client.id)}
+                            title="Solicitar Novo Microcrédito"
+                            className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                          >
+                            <TrendingUp className="w-3.5 h-3.5" />
+                          </button>
+                        )}
 
-                        {/* Ficha PDF */}
+                        {/* Ficha PDF (Todos os utilizadores podem consultar e descarregar) */}
                         <button
                           onClick={() => handleExportPDF(client)}
                           title="Descarregar Ficha Cadastral em PDF"
@@ -243,27 +258,31 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                           <FileText className="w-3.5 h-3.5" />
                         </button>
 
-                        {/* Editar */}
-                        <button
-                          onClick={() => onEditClient(client)}
-                          title="Editar Dados do Empreendedor"
-                          className="p-1.5 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
+                        {/* Editar (Admin apenas) */}
+                        {isAdmin && (
+                          <button
+                            onClick={() => onEditClient(client)}
+                            title="Editar Dados do Cliente"
+                            className="p-1.5 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
 
-                        {/* Excluir */}
-                        <button
-                          onClick={() => {
-                            if (window.confirm(`Tem a certeza que deseja remover o cadastro de ${client.name}?`)) {
-                              onDeleteClient(client.id);
-                            }
-                          }}
-                          title="Remover Cliente"
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {/* Excluir (Admin apenas) */}
+                        {isAdmin && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Tem a certeza que deseja remover o cadastro de ${client.name}?`)) {
+                                onDeleteClient(client.id);
+                              }
+                            }}
+                            title="Remover Cliente"
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
