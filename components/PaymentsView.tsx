@@ -55,7 +55,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   }, [payments]);
 
   const activeCreditsToPay = useMemo(() => {
-    return credits.filter((c) => c.status === 'desembolsado' && c.remainingBalance > 0);
+    return credits.filter((c) => (c.status === 'desembolsado' || c.status === 'aprovado') && c.remainingBalance > 0);
   }, [credits]);
 
   const handleExportExcel = () => {

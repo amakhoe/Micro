@@ -26,6 +26,7 @@ import {
   fetchPayments,
   recordPaymentDoc,
   seedInitialData,
+  autoHealMissingCreditsAndPayments,
 } from '@/lib/firestore-service';
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
@@ -66,11 +67,19 @@ function BayeteApp() {
   const loadAppData = useCallback(async () => {
     setIsLoadingData(true);
     try {
-      const [fetchedClients, fetchedCredits, fetchedPayments] = await Promise.all([
+      let [fetchedClients, fetchedCredits, fetchedPayments] = await Promise.all([
         fetchClients(),
         fetchCredits(),
         fetchPayments(),
       ]);
+
+      // If clients exist in Firebase but credits are missing (e.g. from prior runs), synchronize them directly to Firestore
+      if (fetchedClients.length > 0 && fetchedCredits.length === 0) {
+        console.log('Detectado clientes no Firestore sem propostas salvas. Sincronizando créditos e pagamentos na base de dados...');
+        const healed = await autoHealMissingCreditsAndPayments(fetchedClients);
+        fetchedCredits = healed.credits;
+        fetchedPayments = healed.payments;
+      }
 
       setClients(fetchedClients);
       setCredits(fetchedCredits);
@@ -96,10 +105,10 @@ function BayeteApp() {
       setClients(seeded.clients);
       setCredits(seeded.credits);
       setPayments(seeded.payments);
-      showToast('Dados de demonstração carregados com sucesso no Firebase!');
+      showToast('Dados de demonstração gravados e sincronizados com sucesso no Firebase!');
     } catch (err) {
       console.error('Error seeding data:', err);
-      showToast('Erro ao carregar dados de demonstração.', 'error');
+      showToast('Erro ao carregar dados de demonstração no Firebase.', 'error');
     } finally {
       setIsSeeding(false);
     }
@@ -111,16 +120,21 @@ function BayeteApp() {
       showToast('Acesso negado: Apenas o administrador pode criar ou alterar dados de clientes.', 'error');
       return;
     }
-    if (clientToEdit) {
-      await updateClientDoc(clientToEdit.id, clientData);
-      setClients((prev) => prev.map((c) => (c.id === clientToEdit.id ? { ...c, ...clientData } : c)));
-      showToast('Dados do cliente atualizados com sucesso!');
-    } else {
-      const newClient = await addClientDoc(clientData);
-      setClients((prev) => [newClient, ...prev]);
-      showToast('Novo cliente cadastrado com sucesso no Firebase!');
+    try {
+      if (clientToEdit) {
+        await updateClientDoc(clientToEdit.id, clientData);
+        setClients((prev) => prev.map((c) => (c.id === clientToEdit.id ? { ...c, ...clientData } : c)));
+        showToast('Dados do cliente atualizados com sucesso no Firebase!');
+      } else {
+        const newClient = await addClientDoc(clientData);
+        setClients((prev) => [newClient, ...prev.filter((c) => c.id !== newClient.id)]);
+        showToast('Novo cliente cadastrado com sucesso no Firebase!');
+      }
+      setClientToEdit(null);
+    } catch (err: any) {
+      console.error('Erro ao guardar cliente:', err);
+      showToast(err.message || 'Erro ao guardar cliente na base de dados.', 'error');
     }
-    setClientToEdit(null);
   };
 
   const handleDeleteClient = async (id: string) => {
@@ -128,9 +142,14 @@ function BayeteApp() {
       showToast('Acesso negado: Apenas o administrador pode remover clientes.', 'error');
       return;
     }
-    await deleteClientDoc(id);
-    setClients((prev) => prev.filter((c) => c.id !== id));
-    showToast('Cliente removido da base de dados.');
+    try {
+      await deleteClientDoc(id);
+      setClients((prev) => prev.filter((c) => c.id !== id));
+      showToast('Cliente removido da base de dados Firebase.');
+    } catch (err: any) {
+      console.error('Erro ao remover cliente:', err);
+      showToast('Erro ao remover cliente do Firebase.', 'error');
+    }
   };
 
   const handleOpenEditClient = (client: Client) => {
@@ -151,15 +170,21 @@ function BayeteApp() {
     setIsCreditModalOpen(true);
   };
 
-  // Credit Handlers
+  // Credit Handlers (Análise de Crédito)
   const handleSaveCredit = async (creditData: Omit<CreditApplication, 'id'>) => {
     if (!isAdmin) {
       showToast('Acesso negado: Apenas o administrador pode criar propostas de crédito.', 'error');
       return;
     }
-    const newCredit = await addCreditDoc(creditData);
-    setCredits((prev) => [newCredit, ...prev]);
-    showToast('Proposta de microcrédito registada com sucesso!');
+    try {
+      const newCredit = await addCreditDoc(creditData);
+      setCredits((prev) => [newCredit, ...prev.filter((c) => c.id !== newCredit.id)]);
+      showToast('Proposta de crédito registada e gravada no Firebase com sucesso!');
+    } catch (err: any) {
+      console.error('Erro ao registar crédito no Firebase:', err);
+      showToast(err.message || 'Erro ao registar proposta no Firebase.', 'error');
+      throw err;
+    }
   };
 
   const handleUpdateCreditStatus = async (
@@ -171,14 +196,19 @@ function BayeteApp() {
       showToast('Acesso negado: Apenas o administrador pode alterar o estado ou aprovar créditos.', 'error');
       return;
     }
-    await updateCreditStatusDoc(id, status, notes);
-    setCredits((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, status, ...(notes ? { analystNotes: notes } : {}) } : c))
-    );
-    showToast(`Estado do microcrédito alterado para "${status.toUpperCase()}".`);
+    try {
+      await updateCreditStatusDoc(id, status, notes);
+      setCredits((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, status, ...(notes ? { analystNotes: notes } : {}) } : c))
+      );
+      showToast(`Estado do microcrédito alterado para "${status.toUpperCase()}" na base de dados Firebase.`);
+    } catch (err: any) {
+      console.error('Erro ao atualizar crédito no Firebase:', err);
+      showToast('Erro ao atualizar estado na base de dados Firebase.', 'error');
+    }
   };
 
-  // Payment Handlers
+  // Payment Handlers (Pagamentos)
   const handleRecordPayment = async (
     credit: CreditApplication,
     installmentNumber: number,
@@ -190,19 +220,25 @@ function BayeteApp() {
       showToast('Acesso negado: Apenas o administrador pode registar pagamentos.', 'error');
       throw new Error('Apenas o administrador tem permissão para registar pagamentos.');
     }
-    const result = await recordPaymentDoc(
-      credit,
-      installmentNumber,
-      amount,
-      method,
-      notes,
-      user?.displayName || 'Gestor Bayete'
-    );
+    try {
+      const result = await recordPaymentDoc(
+        credit,
+        installmentNumber,
+        amount,
+        method,
+        notes,
+        user?.displayName || 'Gestor Bayete'
+      );
 
-    setPayments((prev) => [result.payment, ...prev]);
-    setCredits((prev) => prev.map((c) => (c.id === credit.id ? result.updatedCredit : c)));
-    showToast(`Pagamento de ${amount} MT registado! Recibo: ${result.payment.receiptNumber}`);
-    return result;
+      setPayments((prev) => [result.payment, ...prev.filter((p) => p.id !== result.payment.id)]);
+      setCredits((prev) => prev.map((c) => (c.id === credit.id ? result.updatedCredit : c)));
+      showToast(`Pagamento de ${amount} MT registado no Firebase! Recibo: ${result.payment.receiptNumber}`);
+      return result;
+    } catch (err: any) {
+      console.error('Erro ao registar pagamento no Firebase:', err);
+      showToast(err.message || 'Erro ao gravar pagamento na base de dados Firebase.', 'error');
+      throw err;
+    }
   };
 
   const handleOpenPaymentForCredit = (creditId: string) => {

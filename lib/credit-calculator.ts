@@ -15,8 +15,8 @@ export function calculateCredit(
   salary: number,
   startDate: Date = new Date()
 ): CalculationResult {
-  // Safe defaults
-  const P = Math.max(100, Number(amount) || 0);
+  // Safe defaults - accepts any positive loan amount (e.g. 1239 MT, 2890 MT)
+  const P = Math.max(1, Number(amount) || 0);
   const n = Math.max(1, Math.round(Number(termMonths) || 1));
   const r = (Number(monthlyInterestRate) || 0) / 100;
   const sal = Math.max(1, Number(salary) || 1);

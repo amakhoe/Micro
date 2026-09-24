@@ -272,11 +272,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                         id="payment-input-amount"
                         type="number"
                         required
-                        step="10"
+                        step="any"
                         min="1"
                         value={amountPaid}
                         onChange={(e) => setAmountPaid(e.target.value)}
-                        placeholder="Ex: 5000"
+                        placeholder="Ex: 2890 ou 1239"
                         className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-slate-900 font-mono font-bold"
                       />
                     </div>

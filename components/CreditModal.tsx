@@ -69,8 +69,12 @@ export const CreditModal: React.FC<CreditModalProps> = ({
       setError('Por favor selecione um cliente cadastrado.');
       return;
     }
-    if (amount < 1000) {
-      setError('O montante mínimo de microcrédito é 1.000 MT.');
+    if (!amount || amount <= 0) {
+      setError('Por favor introduza um montante solicitado válido (maior que zero).');
+      return;
+    }
+    if (!interestRate || interestRate <= 0 || interestRate > 35) {
+      setError('A taxa de juro mensal deve estar entre 0.1% e 35%.');
       return;
     }
     if (!purpose.trim()) {
@@ -85,7 +89,7 @@ export const CreditModal: React.FC<CreditModalProps> = ({
         clientId: selectedClient.id,
         clientName: selectedClient.name,
         clientPhone: selectedClient.phone,
-        clientEmail: selectedClient.email,
+        clientEmail: selectedClient.email || '',
         clientBi: selectedClient.bi,
         clientNuit: selectedClient.nuit,
         clientSalary: selectedClient.salary,
@@ -99,10 +103,10 @@ export const CreditModal: React.FC<CreditModalProps> = ({
         totalInterest: calcResult.totalInterest,
         riskAnalysis: calcResult.riskAnalysis,
         status: initialStatus,
-        analystNotes: analystNotes.trim(),
-        approvedAmount: initialStatus !== 'recusado' ? amount : undefined,
-        approvedAt: initialStatus === 'aprovado' || initialStatus === 'desembolsado' ? now : undefined,
-        disbursedAt: initialStatus === 'desembolsado' ? now : undefined,
+        ...(analystNotes.trim() ? { analystNotes: analystNotes.trim() } : {}),
+        ...(initialStatus !== 'recusado' ? { approvedAmount: amount } : {}),
+        ...(initialStatus === 'aprovado' || initialStatus === 'desembolsado' ? { approvedAt: now } : {}),
+        ...(initialStatus === 'desembolsado' ? { disbursedAt: now } : {}),
         createdAt: now,
         installments: calcResult.installments,
         totalPaid: 0,
@@ -216,18 +220,21 @@ export const CreditModal: React.FC<CreditModalProps> = ({
                     id="credit-amount-input"
                     type="number"
                     required
-                    min="1000"
-                    step="500"
+                    min="1"
+                    step="any"
                     value={amount === 0 ? '' : amount}
                     onChange={(e) => {
                       const val = e.target.value;
                       setAmount(val === '' ? 0 : Number(val));
                     }}
-                    placeholder="Introduza o montante solicitado (Ex: 20000)"
+                    placeholder="Introduza o montante solicitado (Ex: 2890 ou 1239)"
                     className="w-full pl-9 pr-12 py-2 text-xs font-semibold rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-slate-900 bg-white"
                   />
                   <span className="absolute right-3 top-2 text-xs font-bold text-slate-400">MT</span>
                 </div>
+                <p className="text-[10.5px] text-slate-500 mt-1">
+                  Introduza qualquer montante exato pretendido (ex: 1.239 MT, 2.890 MT). Não há restrição de múltiplos.
+                </p>
               </div>
 
               {/* Term and Interest Rate in 2 Columns */}
@@ -253,21 +260,42 @@ export const CreditModal: React.FC<CreditModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Taxa de Juro Mensal (%) *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-slate-700">
+                      Taxa de Juro Mensal (%) *
+                    </label>
+                    <span className="text-[10.5px] font-bold text-emerald-700 font-mono">
+                      Até 35%
+                    </span>
+                  </div>
                   <div className="relative">
                     <input
                       id="credit-interest-rate"
                       type="number"
-                      step="0.5"
-                      min="1"
-                      max="25"
+                      step="any"
+                      min="0.1"
+                      max="35"
                       value={interestRate}
                       onChange={(e) => setInterestRate(Number(e.target.value))}
-                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-slate-900"
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-slate-900 font-medium"
                     />
                     <span className="absolute right-3 top-2 text-xs text-slate-400">% / mês</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {[3.5, 5, 10, 15, 20, 25, 30, 35].map((rate) => (
+                      <button
+                        key={rate}
+                        type="button"
+                        onClick={() => setInterestRate(rate)}
+                        className={`px-1.5 py-0.5 text-[10px] rounded border transition-colors ${
+                          interestRate === rate
+                            ? 'bg-emerald-600 text-white border-emerald-600 font-bold'
+                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {rate}%
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>

@@ -86,15 +86,15 @@ export function generateSeedCreditsAndPayments(clientsWithIds: Client[]): {
   inst1[0].paidAmount = inst1[0].amount;
   inst1[0].paidAt = '2026-08-01T10:00:00.000Z';
   inst1[0].paymentMethod = 'm-pesa';
-  inst1[0].paymentRef = 'MP-892410';
+  inst1[0].paymentRef = 'BYT-2026-892410';
 
   inst1[1].status = 'pago';
   inst1[1].paidAmount = inst1[1].amount;
   inst1[1].paidAt = '2026-09-01T14:30:00.000Z';
   inst1[1].paymentMethod = 'm-pesa';
-  inst1[1].paymentRef = 'MP-910244';
+  inst1[1].paymentRef = 'BYT-2026-910244';
 
-  // Dynamic due dates for upcoming demo alerts within the next 7 days
+  // Dynamic due dates for upcoming demo alerts within the next 3 days
   const upcomingDue1 = new Date();
   upcomingDue1.setDate(upcomingDue1.getDate() + 3);
   inst1[2].dueDate = upcomingDue1.toISOString().split('T')[0];
@@ -104,7 +104,7 @@ export function generateSeedCreditsAndPayments(clientsWithIds: Client[]): {
     clientId: c1.id,
     clientName: c1.name,
     clientPhone: c1.phone,
-    clientEmail: c1.email,
+    clientEmail: c1.email || '',
     clientBi: c1.bi,
     clientNuit: c1.nuit,
     clientSalary: c1.salary,
@@ -136,7 +136,7 @@ export function generateSeedCreditsAndPayments(clientsWithIds: Client[]): {
       clientId: c2.id,
       clientName: c2.name,
       clientPhone: c2.phone,
-      clientEmail: c2.email,
+      clientEmail: c2.email || '',
       clientBi: c2.bi,
       clientNuit: c2.nuit,
       clientSalary: c2.salary,
@@ -168,7 +168,7 @@ export function generateSeedCreditsAndPayments(clientsWithIds: Client[]): {
     inst3[0].paidAmount = inst3[0].amount;
     inst3[0].paidAt = '2026-09-20T11:00:00.000Z';
     inst3[0].paymentMethod = 'e-mola';
-    inst3[0].paymentRef = 'EM-44910';
+    inst3[0].paymentRef = 'BYT-2026-44910';
 
     // Upcoming due date within 6 days for Fátima Sulemane
     const upcomingDue2 = new Date();
@@ -181,7 +181,7 @@ export function generateSeedCreditsAndPayments(clientsWithIds: Client[]): {
       clientId: c3.id,
       clientName: c3.name,
       clientPhone: c3.phone,
-      clientEmail: c3.email,
+      clientEmail: c3.email || '',
       clientBi: c3.bi,
       clientNuit: c3.nuit,
       clientSalary: c3.salary,
@@ -213,7 +213,7 @@ export function generateSeedCreditsAndPayments(clientsWithIds: Client[]): {
       clientId: c4.id,
       clientName: c4.name,
       clientPhone: c4.phone,
-      clientEmail: c4.email,
+      clientEmail: c4.email || '',
       clientBi: c4.bi,
       clientNuit: c4.nuit,
       clientSalary: c4.salary,

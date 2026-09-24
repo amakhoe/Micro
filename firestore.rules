@@ -6,32 +6,30 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isAdmin() {
-      return isAuthenticated() && (
-        !exists(/databases/$(database)/documents/user_profiles/$(request.auth.uid)) ||
-        get(/databases/$(database)/documents/user_profiles/$(request.auth.uid)).data.role == 'admin'
-      );
+    function isExplicitViewer() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/user_profiles/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/user_profiles/$(request.auth.uid)).data.role == 'viewer';
     }
 
     match /user_profiles/{userId} {
-      allow read: if isAuthenticated() || true;
-      allow create, update: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow delete: if isAdmin();
+      allow read, write: if true;
     }
 
     match /clients/{clientId} {
-      allow read: if isAuthenticated() || true;
-      allow create, update, delete: if isAdmin();
+      allow read: if true;
+      allow write: if !isExplicitViewer();
     }
 
     match /credits/{creditId} {
-      allow read: if isAuthenticated() || true;
-      allow create, update, delete: if isAdmin();
+      allow read: if true;
+      allow write: if !isExplicitViewer();
     }
 
     match /payments/{paymentId} {
-      allow read: if isAuthenticated() || true;
-      allow create, update, delete: if isAdmin();
+      allow read: if true;
+      allow write: if !isExplicitViewer();
     }
   }
 }
+

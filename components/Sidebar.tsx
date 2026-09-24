@@ -212,7 +212,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         )}
 
-        {!hasData && (
+        {(!hasData || (creditsCount === 0 && clientsCount !== undefined && clientsCount > 0)) && (
           <button
             id="btn-sidebar-seed-data"
             onClick={() => {
@@ -220,13 +220,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
               setIsMobileOpen(false);
             }}
             disabled={isSeeding}
-            className="w-full flex items-center space-x-2.5 px-3.5 py-2 rounded-xl text-xs font-medium bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 transition-all"
-            title="Carregar dados moçambicanos de teste"
+            className="w-full flex items-center space-x-2.5 px-3.5 py-2 rounded-xl text-xs font-medium bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 transition-all mb-2"
+            title="Gravar propostas de crédito e pagamentos de exemplo no Firebase"
           >
             <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="truncate">{isSeeding ? 'Carregando...' : 'Carregar Dados Exemplo'}</span>
+            <span className="truncate">{isSeeding ? 'A gravar no Firebase...' : 'Sincronizar Dados Firebase'}</span>
           </button>
         )}
+
+        {/* Firebase Connected Indicator */}
+        <div className="mt-2 mx-1 p-2 rounded-lg bg-slate-900/90 border border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
+          <div className="flex items-center space-x-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="font-semibold text-slate-300">Firebase Firestore</span>
+          </div>
+          <span className="text-[9px] bg-slate-800 text-emerald-400 px-1.5 py-0.5 rounded font-mono font-medium">
+            Ativo
+          </span>
+        </div>
       </nav>
 
       {/* User Session & Admin Profile Footer */}
