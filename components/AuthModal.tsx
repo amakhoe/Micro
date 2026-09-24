@@ -56,10 +56,7 @@ export const AuthModal: React.FC = () => {
             Plataforma de Financiamento Rápido a Pequenos Empreendedores Locais
           </p>
 
-          <div className="inline-flex items-center space-x-1.5 mt-3 text-[11px] bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2.5 py-0.5 rounded-full font-medium">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Acesso Restrito a Administradores</span>
-          </div>
+         
         </div>
 
         {/* Login Form Section */}

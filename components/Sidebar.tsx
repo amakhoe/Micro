@@ -229,15 +229,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
 
         {/* Firebase Connected Indicator */}
-        <div className="mt-2 mx-1 p-2 rounded-lg bg-slate-900/90 border border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
-          <div className="flex items-center space-x-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="font-semibold text-slate-300">Firebase Firestore</span>
-          </div>
-          <span className="text-[9px] bg-slate-800 text-emerald-400 px-1.5 py-0.5 rounded font-mono font-medium">
-            Ativo
-          </span>
-        </div>
+      
       </nav>
 
       {/* User Session & Admin Profile Footer */}

@@ -140,10 +140,10 @@ export const ClientModal: React.FC<ClientModalProps> = ({
             </div>
             <div>
               <h3 className="font-bold text-base text-white">
-                {clientToEdit ? 'Editar Cadastro de Empreendedor' : 'Registo de Novo Cliente / Empreendedor'}
+                {clientToEdit ? 'Editar Cadastro de Empreendedor' : 'Registo de Novo Cliente'}
               </h3>
               <p className="text-[11px] text-slate-300">
-                Cadastro cadastral completo para concessão de microcrédito rápido
+                Cadastro completo para concessão de microcrédito rápido
               </p>
             </div>
           </div>
@@ -187,7 +187,7 @@ export const ClientModal: React.FC<ClientModalProps> = ({
             {/* NR de Telemóvel */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                NR de Telemóvel (M-Pesa / E-Mola) *
+                NR de Telemóvel
               </label>
               <div className="relative">
                 <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -263,7 +263,6 @@ export const ClientModal: React.FC<ClientModalProps> = ({
                 Salário / Faturação Líquida Mensal (MT) *
               </label>
               <div className="relative">
-                <DollarSign className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                 <input
                   id="client-form-salary"
                   type="number"
@@ -272,7 +271,7 @@ export const ClientModal: React.FC<ClientModalProps> = ({
                   step="100"
                   value={salary}
                   onChange={(e) => setSalary(e.target.value)}
-                  placeholder="Ex: 30000"
+                  placeholder="Ex: 30000 MZN"
                   className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-slate-900"
                 />
               </div>
