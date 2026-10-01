@@ -21,8 +21,9 @@ interface CreditModalProps {
   isOpen: boolean;
   onClose: () => void;
   clients: Client[];
-  onSave: (creditData: Omit<CreditApplication, 'id'>) => Promise<void>;
+  onSave: (creditData: Omit<CreditApplication, 'id'>, creditId?: string) => Promise<void>;
   preselectedClientId?: string;
+  creditToEdit?: CreditApplication | null;
 }
 
 export const CreditModal: React.FC<CreditModalProps> = ({
@@ -31,6 +32,7 @@ export const CreditModal: React.FC<CreditModalProps> = ({
   clients,
   onSave,
   preselectedClientId,
+  creditToEdit,
 }) => {
   const [selectedClientId, setSelectedClientId] = useState<string>(preselectedClientId || '');
   const [amount, setAmount] = useState<number>(20000);
@@ -43,12 +45,32 @@ export const CreditModal: React.FC<CreditModalProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (preselectedClientId) {
+    if (creditToEdit) {
+      setSelectedClientId(creditToEdit.clientId);
+      setAmount(creditToEdit.requestedAmount);
+      setTermMonths(creditToEdit.termMonths);
+      setInterestRate(creditToEdit.interestRate);
+      setPurpose(creditToEdit.purpose);
+      setAnalystNotes(creditToEdit.analystNotes || '');
+      setInitialStatus(creditToEdit.status);
+    } else if (preselectedClientId) {
       setSelectedClientId(preselectedClientId);
+      setAmount(20000);
+      setTermMonths(3);
+      setInterestRate(5);
+      setPurpose('Compra de mercadorias e capital de giro');
+      setAnalystNotes('');
+      setInitialStatus('pendente');
     } else if (clients.length > 0 && !selectedClientId) {
       setSelectedClientId(clients[0].id);
+      setAmount(20000);
+      setTermMonths(3);
+      setInterestRate(5);
+      setPurpose('Compra de mercadorias e capital de giro');
+      setAnalystNotes('');
+      setInitialStatus('pendente');
     }
-  }, [preselectedClientId, clients, selectedClientId]);
+  }, [creditToEdit, preselectedClientId, clients, selectedClientId]);
 
   const selectedClient = useMemo(() => {
     return clients.find((c) => c.id === selectedClientId) || clients[0];
@@ -104,16 +126,24 @@ export const CreditModal: React.FC<CreditModalProps> = ({
         riskAnalysis: calcResult.riskAnalysis,
         status: initialStatus,
         ...(analystNotes.trim() ? { analystNotes: analystNotes.trim() } : {}),
-        ...(initialStatus !== 'recusado' ? { approvedAmount: amount } : {}),
-        ...(initialStatus === 'aprovado' || initialStatus === 'desembolsado' ? { approvedAt: now } : {}),
-        ...(initialStatus === 'desembolsado' ? { disbursedAt: now } : {}),
-        createdAt: now,
+        ...(initialStatus !== 'recusado' ? { approvedAmount: creditToEdit?.approvedAmount || amount } : {}),
+        ...(creditToEdit?.approvedAt
+          ? { approvedAt: creditToEdit.approvedAt }
+          : initialStatus === 'aprovado' || initialStatus === 'desembolsado'
+          ? { approvedAt: now }
+          : {}),
+        ...(creditToEdit?.disbursedAt
+          ? { disbursedAt: creditToEdit.disbursedAt }
+          : initialStatus === 'desembolsado'
+          ? { disbursedAt: now }
+          : {}),
+        createdAt: creditToEdit?.createdAt || now,
         installments: calcResult.installments,
-        totalPaid: 0,
-        remainingBalance: calcResult.totalRepayment,
+        totalPaid: creditToEdit?.totalPaid || 0,
+        remainingBalance: Math.max(0, calcResult.totalRepayment - (creditToEdit?.totalPaid || 0)),
       };
 
-      await onSave(creditData);
+      await onSave(creditData, creditToEdit?.id);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Erro ao submeter proposta de crédito.');
@@ -146,9 +176,13 @@ export const CreditModal: React.FC<CreditModalProps> = ({
               <TrendingUp className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h3 className="font-bold text-base text-white">Nova Proposta & Análise de Crédito</h3>
+              <h3 className="font-bold text-base text-white">
+                {creditToEdit ? 'Editar Proposta de Microcrédito' : 'Nova Proposta & Análise de Crédito'}
+              </h3>
               <p className="text-[11px] text-slate-300">
-                Simulador financeiro rápido com análise automatizada de esforço e risco
+                {creditToEdit
+                  ? 'Modificar montante, prazo, taxa de juro e dados da proposta'
+                  : 'Simulador financeiro rápido com análise automatizada de esforço e risco'}
               </p>
             </div>
           </div>
@@ -483,7 +517,13 @@ export const CreditModal: React.FC<CreditModalProps> = ({
               className="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors flex items-center space-x-1.5 disabled:opacity-60"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>{isSubmitting ? 'A Gravar...' : 'Confirmar e Criar Microcrédito'}</span>
+              <span>
+                {isSubmitting
+                  ? 'A Gravar...'
+                  : creditToEdit
+                  ? 'Guardar Alterações'
+                  : 'Confirmar e Criar Microcrédito'}
+              </span>
             </button>
           </div>
         </form>

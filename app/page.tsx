@@ -22,9 +22,13 @@ import {
   deleteClientDoc,
   fetchCredits,
   addCreditDoc,
+  updateCreditDoc,
+  deleteCreditDoc,
   updateCreditStatusDoc,
   fetchPayments,
   recordPaymentDoc,
+  updatePaymentDoc,
+  deletePaymentDoc,
   seedInitialData,
   autoHealMissingCreditsAndPayments,
 } from '@/lib/firestore-service';
@@ -47,9 +51,11 @@ function BayeteApp() {
   const [clientToEdit, setClientToEdit] = useState<Client | null>(null);
 
   const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
+  const [creditToEdit, setCreditToEdit] = useState<CreditApplication | null>(null);
   const [preselectedCreditClientId, setPreselectedCreditClientId] = useState<string | undefined>(undefined);
 
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentToEdit, setPaymentToEdit] = useState<PaymentRecord | null>(null);
   const [preselectedPaymentCreditId, setPreselectedPaymentCreditId] = useState<string | undefined>(undefined);
 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -171,20 +177,55 @@ function BayeteApp() {
   };
 
   // Credit Handlers (Análise de Crédito)
-  const handleSaveCredit = async (creditData: Omit<CreditApplication, 'id'>) => {
+  const handleSaveCredit = async (creditData: Omit<CreditApplication, 'id'>, creditId?: string) => {
     if (!isAdmin) {
-      showToast('Acesso negado: Apenas o administrador pode criar propostas de crédito.', 'error');
+      showToast('Acesso negado: Apenas o administrador pode criar ou editar propostas de crédito.', 'error');
       return;
     }
     try {
-      const newCredit = await addCreditDoc(creditData);
-      setCredits((prev) => [newCredit, ...prev.filter((c) => c.id !== newCredit.id)]);
-      showToast('Proposta de crédito registada e gravada no Firebase com sucesso!');
+      if (creditId || creditToEdit) {
+        const targetId = creditId || creditToEdit!.id;
+        await updateCreditDoc(targetId, creditData);
+        setCredits((prev) =>
+          prev.map((c) => (c.id === targetId ? { ...c, ...creditData, id: targetId } : c))
+        );
+        showToast('Proposta de crédito atualizada com sucesso no Firebase!');
+        setCreditToEdit(null);
+      } else {
+        const newCredit = await addCreditDoc(creditData);
+        setCredits((prev) => [newCredit, ...prev.filter((c) => c.id !== newCredit.id)]);
+        showToast('Proposta de crédito registada e gravada no Firebase com sucesso!');
+      }
     } catch (err: any) {
       console.error('Erro ao registar crédito no Firebase:', err);
-      showToast(err.message || 'Erro ao registar proposta no Firebase.', 'error');
+      showToast(err.message || 'Erro ao gravar proposta no Firebase.', 'error');
       throw err;
     }
+  };
+
+  const handleDeleteCredit = async (id: string) => {
+    if (!isAdmin) {
+      showToast('Acesso negado: Apenas o administrador pode eliminar propostas de crédito.', 'error');
+      return;
+    }
+    try {
+      await deleteCreditDoc(id);
+      setCredits((prev) => prev.filter((c) => c.id !== id));
+      showToast('Proposta de crédito eliminada com sucesso da base de dados Firebase.');
+    } catch (err: any) {
+      console.error('Erro ao eliminar crédito no Firebase:', err);
+      showToast('Erro ao eliminar proposta no Firebase.', 'error');
+    }
+  };
+
+  const handleOpenEditCredit = (credit: CreditApplication) => {
+    if (!isAdmin) {
+      showToast('Apenas o administrador tem permissão para editar propostas de crédito.', 'error');
+      return;
+    }
+    setCreditToEdit(credit);
+    setPreselectedCreditClientId(credit.clientId);
+    setIsCreditModalOpen(true);
   };
 
   const handleUpdateCreditStatus = async (
@@ -241,6 +282,49 @@ function BayeteApp() {
     }
   };
 
+  const handleUpdatePayment = async (id: string, updates: Partial<PaymentRecord>) => {
+    if (!isAdmin) {
+      showToast('Acesso negado: Apenas o administrador pode editar pagamentos.', 'error');
+      return;
+    }
+    try {
+      await updatePaymentDoc(id, updates);
+      setPayments((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
+      showToast('Registo de pagamento atualizado com sucesso no Firebase!');
+      setPaymentToEdit(null);
+    } catch (err: any) {
+      console.error('Erro ao atualizar pagamento no Firebase:', err);
+      showToast(err.message || 'Erro ao atualizar pagamento no Firebase.', 'error');
+    }
+  };
+
+  const handleDeletePayment = async (payment: PaymentRecord) => {
+    if (!isAdmin) {
+      showToast('Acesso negado: Apenas o administrador pode eliminar pagamentos.', 'error');
+      return;
+    }
+    try {
+      await deletePaymentDoc(payment.id, payment.creditId, payment.installmentNumber, payment.amountPaid);
+      setPayments((prev) => prev.filter((p) => p.id !== payment.id));
+      // Refresh credits to reflect any balance adjustment
+      const refreshedCredits = await fetchCredits();
+      setCredits(refreshedCredits);
+      showToast('Registo de pagamento eliminado com sucesso no Firebase.');
+    } catch (err: any) {
+      console.error('Erro ao eliminar pagamento no Firebase:', err);
+      showToast('Erro ao eliminar pagamento no Firebase.', 'error');
+    }
+  };
+
+  const handleOpenEditPayment = (payment: PaymentRecord) => {
+    if (!isAdmin) {
+      showToast('Apenas o administrador tem permissão para editar pagamentos.', 'error');
+      return;
+    }
+    setPaymentToEdit(payment);
+    setIsPaymentModalOpen(true);
+  };
+
   const handleOpenPaymentForCredit = (creditId: string) => {
     setPreselectedPaymentCreditId(creditId);
     setIsPaymentModalOpen(true);
@@ -260,7 +344,7 @@ function BayeteApp() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100/70 text-slate-900 flex flex-col md:flex-row font-sans">
+    <div className="min-h-screen bg-slate-100/70 text-slate-900 flex flex-col font-sans">
       {/* Toast notification banner */}
       {toastMessage && (
         <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-3 duration-300">
@@ -283,7 +367,7 @@ function BayeteApp() {
         </div>
       )}
 
-      {/* Main Sidebar (Desktop fixed left & Mobile header/drawer) */}
+      {/* Main Responsive Header & Sidebar Drawer (Only appears when clicked) */}
       <Sidebar
         currentTab={currentTab}
         onTabChange={setCurrentTab}
@@ -306,7 +390,7 @@ function BayeteApp() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+      <div className="flex-1 flex flex-col min-w-0">
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {isLoadingData ? (
           <div className="py-24 flex flex-col items-center justify-center text-slate-500">
@@ -357,11 +441,14 @@ function BayeteApp() {
                 credits={credits}
                 clients={clients}
                 onOpenNewCredit={() => {
+                  setCreditToEdit(null);
                   setPreselectedCreditClientId(undefined);
                   setIsCreditModalOpen(true);
                 }}
                 onUpdateCreditStatus={handleUpdateCreditStatus}
                 onOpenPaymentForCredit={handleOpenPaymentForCredit}
+                onEditCredit={handleOpenEditCredit}
+                onDeleteCredit={handleDeleteCredit}
               />
             )}
 
@@ -370,9 +457,12 @@ function BayeteApp() {
                 payments={payments}
                 credits={credits}
                 onOpenNewPayment={(creditId) => {
+                  setPaymentToEdit(null);
                   setPreselectedPaymentCreditId(creditId);
                   setIsPaymentModalOpen(true);
                 }}
+                onEditPayment={handleOpenEditPayment}
+                onDeletePayment={handleDeletePayment}
               />
             )}
 
@@ -406,22 +496,27 @@ function BayeteApp() {
         isOpen={isCreditModalOpen}
         onClose={() => {
           setIsCreditModalOpen(false);
+          setCreditToEdit(null);
           setPreselectedCreditClientId(undefined);
         }}
         clients={clients}
         onSave={handleSaveCredit}
         preselectedClientId={preselectedCreditClientId}
+        creditToEdit={creditToEdit}
       />
 
       <PaymentModal
         isOpen={isPaymentModalOpen}
         onClose={() => {
           setIsPaymentModalOpen(false);
+          setPaymentToEdit(null);
           setPreselectedPaymentCreditId(undefined);
         }}
         credits={credits}
         onRecordPayment={handleRecordPayment}
         preselectedCreditId={preselectedPaymentCreditId}
+        paymentToEdit={paymentToEdit}
+        onUpdatePayment={handleUpdatePayment}
       />
 
       {/* Admin Profile & Credentials Modal */}

@@ -24,6 +24,8 @@ import {
   CreditCard,
   Download,
   Lock,
+  Edit2,
+  Trash2,
 } from 'lucide-react';
 
 interface CreditAnalysisViewProps {
@@ -36,6 +38,8 @@ interface CreditAnalysisViewProps {
     notes?: string
   ) => Promise<void>;
   onOpenPaymentForCredit: (creditId: string) => void;
+  onEditCredit: (credit: CreditApplication) => void;
+  onDeleteCredit: (id: string) => Promise<void>;
 }
 
 export const CreditAnalysisView: React.FC<CreditAnalysisViewProps> = ({
@@ -44,6 +48,8 @@ export const CreditAnalysisView: React.FC<CreditAnalysisViewProps> = ({
   onOpenNewCredit,
   onUpdateCreditStatus,
   onOpenPaymentForCredit,
+  onEditCredit,
+  onDeleteCredit,
 }) => {
   const { isAdmin } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
@@ -318,6 +324,34 @@ export const CreditAnalysisView: React.FC<CreditAnalysisViewProps> = ({
                   {/* Admin-only Workflow Transitions */}
                   {isAdmin && (
                     <>
+                      {/* Editar Documento */}
+                      <button
+                        onClick={() => onEditCredit(cr)}
+                        title="Editar Proposta de Crédito"
+                        className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-700 text-[11px] font-medium transition-colors"
+                      >
+                        <Edit2 className="w-3 h-3 text-amber-600" />
+                        <span>Editar</span>
+                      </button>
+
+                      {/* Apagar Documento */}
+                      <button
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              `Tem a certeza que deseja eliminar o documento da proposta de crédito de ${cr.clientName} (${formatCurrencyMT(cr.requestedAmount)})?`
+                            )
+                          ) {
+                            onDeleteCredit(cr.id);
+                          }
+                        }}
+                        title="Eliminar Proposta de Crédito"
+                        className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-md border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 text-[11px] font-medium transition-colors"
+                      >
+                        <Trash2 className="w-3 h-3 text-rose-600" />
+                        <span>Apagar</span>
+                      </button>
+
                       {/* If Pending -> Approve or Reject */}
                       {cr.status === 'pendente' && (
                         <>

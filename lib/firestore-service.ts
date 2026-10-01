@@ -172,6 +172,29 @@ export async function updateCreditStatusDoc(
   }
 }
 
+export async function updateCreditDoc(id: string, updates: Partial<CreditApplication>): Promise<void> {
+  const cleanUpdates = sanitizeForFirestore(updates);
+  try {
+    const docRef = doc(db, CREDITS_COLLECTION, id);
+    await updateDoc(docRef, cleanUpdates);
+    memoryCredits = memoryCredits.map((c) => (c.id === id ? { ...c, ...cleanUpdates } : c));
+  } catch (error) {
+    console.error('Erro ao atualizar proposta de crédito no Firestore:', error);
+    throw error;
+  }
+}
+
+export async function deleteCreditDoc(id: string): Promise<void> {
+  try {
+    const docRef = doc(db, CREDITS_COLLECTION, id);
+    await deleteDoc(docRef);
+    memoryCredits = memoryCredits.filter((c) => c.id !== id);
+  } catch (error) {
+    console.error('Erro ao eliminar proposta de crédito no Firestore:', error);
+    throw error;
+  }
+}
+
 // ==========================================
 // PAYMENTS (PAGAMENTOS)
 // ==========================================
@@ -274,6 +297,61 @@ export async function recordPaymentDoc(
     return { payment: savedPayment, updatedCredit };
   } catch (error) {
     console.error('Erro crítico ao gravar pagamento no Firestore:', error);
+    throw error;
+  }
+}
+
+export async function updatePaymentDoc(id: string, updates: Partial<PaymentRecord>): Promise<void> {
+  const cleanUpdates = sanitizeForFirestore(updates);
+  try {
+    const docRef = doc(db, PAYMENTS_COLLECTION, id);
+    await updateDoc(docRef, cleanUpdates);
+    memoryPayments = memoryPayments.map((p) => (p.id === id ? { ...p, ...cleanUpdates } : p));
+  } catch (error) {
+    console.error('Erro ao atualizar pagamento no Firestore:', error);
+    throw error;
+  }
+}
+
+export async function deletePaymentDoc(
+  id: string,
+  creditId?: string,
+  installmentNumber?: number,
+  amountPaid?: number
+): Promise<void> {
+  try {
+    const docRef = doc(db, PAYMENTS_COLLECTION, id);
+    await deleteDoc(docRef);
+    memoryPayments = memoryPayments.filter((p) => p.id !== id);
+
+    // If related credit info is provided, adjust remaining balance and installment state
+    if (creditId && amountPaid) {
+      const credit = memoryCredits.find((c) => c.id === creditId);
+      if (credit) {
+        const updatedInstallments = (credit.installments || []).map((inst) => {
+          if (installmentNumber !== undefined && inst.number === installmentNumber) {
+            const newPaid = Math.max(0, (inst.paidAmount || 0) - amountPaid);
+            return {
+              ...inst,
+              paidAmount: newPaid,
+              status: (newPaid >= inst.amount ? 'pago' : 'pendente') as 'pago' | 'pendente',
+            };
+          }
+          return inst;
+        });
+        const newTotalPaid = Math.max(0, (credit.totalPaid || 0) - amountPaid);
+        const newRemaining = Math.min(credit.totalRepayment, (credit.remainingBalance || 0) + amountPaid);
+        const creditUpdates: Partial<CreditApplication> = {
+          installments: updatedInstallments,
+          totalPaid: newTotalPaid,
+          remainingBalance: newRemaining,
+          ...(credit.status === 'liquidado' ? { status: 'desembolsado' } : {}),
+        };
+        await updateCreditDoc(creditId, creditUpdates);
+      }
+    }
+  } catch (error) {
+    console.error('Erro ao eliminar pagamento no Firestore:', error);
     throw error;
   }
 }

@@ -27,6 +27,8 @@ interface PaymentModalProps {
     notes: string
   ) => Promise<{ payment: PaymentRecord; updatedCredit: CreditApplication }>;
   preselectedCreditId?: string;
+  paymentToEdit?: PaymentRecord | null;
+  onUpdatePayment?: (id: string, updates: Partial<PaymentRecord>) => Promise<void>;
 }
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({
@@ -35,6 +37,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   credits,
   onRecordPayment,
   preselectedCreditId,
+  paymentToEdit,
+  onUpdatePayment,
 }) => {
   const eligibleCredits = credits.filter(
     (c) => (c.status === 'desembolsado' || c.status === 'aprovado') && c.remainingBalance > 0
@@ -50,18 +54,30 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [lastRecordedPayment, setLastRecordedPayment] = useState<PaymentRecord | null>(null);
 
   useEffect(() => {
-    if (preselectedCreditId) {
+    if (paymentToEdit) {
+      setSelectedCreditId(paymentToEdit.creditId);
+      setInstallmentNum(paymentToEdit.installmentNumber);
+      setAmountPaid(paymentToEdit.amountPaid.toString());
+      setPaymentMethod(paymentToEdit.paymentMethod);
+      setNotes(paymentToEdit.notes || '');
+    } else if (preselectedCreditId) {
       setSelectedCreditId(preselectedCreditId);
+      setAmountPaid('');
+      setNotes('');
     } else if (eligibleCredits.length > 0 && !selectedCreditId) {
       setSelectedCreditId(eligibleCredits[0].id);
+      setAmountPaid('');
+      setNotes('');
     }
-  }, [preselectedCreditId, eligibleCredits, selectedCreditId]);
+  }, [paymentToEdit, preselectedCreditId, eligibleCredits, selectedCreditId]);
 
-  const selectedCredit = eligibleCredits.find((c) => c.id === selectedCreditId);
+  const selectedCredit =
+    credits.find((c) => c.id === (paymentToEdit ? paymentToEdit.creditId : selectedCreditId)) ||
+    eligibleCredits.find((c) => c.id === selectedCreditId);
 
-  // Auto set installment and default amount when selectedCredit changes
+  // Auto set installment and default amount when selectedCredit changes in creation mode
   useEffect(() => {
-    if (selectedCredit) {
+    if (!paymentToEdit && selectedCredit) {
       // Find first pending installment
       const nextPending = selectedCredit.installments.find((i) => i.status === 'pendente');
       if (nextPending) {
@@ -73,7 +89,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         setAmountPaid(selectedCredit.monthlyInstallment.toString());
       }
     }
-  }, [selectedCredit]);
+  }, [paymentToEdit, selectedCredit]);
 
   if (!isOpen) return null;
 
@@ -81,19 +97,30 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     e.preventDefault();
     setError(null);
 
-    if (!selectedCredit) {
-      setError('Por favor selecione um crédito ativo.');
-      return;
-    }
-
     const parsedAmount = parseFloat(amountPaid);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      setError('Por favor indique um valor de pagamento válido.');
+      setError('Por favor indique um valor de pagamento válido (maior que zero).');
       return;
     }
 
     setIsSubmitting(true);
     try {
+      if (paymentToEdit && onUpdatePayment) {
+        await onUpdatePayment(paymentToEdit.id, {
+          amountPaid: parsedAmount,
+          paymentMethod,
+          installmentNumber: installmentNum,
+          notes: notes.trim(),
+        });
+        onClose();
+        return;
+      }
+
+      if (!selectedCredit) {
+        setError('Por favor selecione um crédito ativo.');
+        return;
+      }
+
       const result = await onRecordPayment(
         selectedCredit,
         installmentNum,
@@ -103,7 +130,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       );
       setLastRecordedPayment(result.payment);
     } catch (err: any) {
-      setError(err.message || 'Erro ao registar pagamento.');
+      setError(err.message || 'Erro ao processar pagamento.');
     } finally {
       setIsSubmitting(false);
     }
@@ -130,9 +157,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               <CreditCard className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h3 className="font-bold text-base text-white">Registo de Pagamento de Parcela</h3>
+              <h3 className="font-bold text-base text-white">
+                {paymentToEdit ? 'Editar Registo de Pagamento' : 'Registo de Pagamento de Parcela'}
+              </h3>
               <p className="text-[11px] text-slate-300">
-                Amortização imediata com emissão de recibo oficial
+                {paymentToEdit
+                  ? `Recibo Nº ${paymentToEdit.receiptNumber} • ${paymentToEdit.clientName}`
+                  : 'Amortização imediata com emissão de recibo oficial'}
               </p>
             </div>
           </div>
@@ -334,7 +365,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     className="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors flex items-center space-x-1.5 disabled:opacity-60"
                   >
                     <Receipt className="w-3.5 h-3.5" />
-                    <span>{isSubmitting ? 'A Processar...' : 'Confirmar e Emitir Recibo'}</span>
+                    <span>
+                      {isSubmitting
+                        ? 'A Processar...'
+                        : paymentToEdit
+                        ? 'Guardar Alterações'
+                        : 'Confirmar e Emitir Recibo'}
+                    </span>
                   </button>
                 </div>
               </>

@@ -20,18 +20,24 @@ import {
   User,
   ArrowDownRight,
   Lock,
+  Edit2,
+  Trash2,
 } from 'lucide-react';
 
 interface PaymentsViewProps {
   payments: PaymentRecord[];
   credits: CreditApplication[];
   onOpenNewPayment: (creditId?: string) => void;
+  onEditPayment: (payment: PaymentRecord) => void;
+  onDeletePayment: (payment: PaymentRecord) => Promise<void>;
 }
 
 export const PaymentsView: React.FC<PaymentsViewProps> = ({
   payments,
   credits,
   onOpenNewPayment,
+  onEditPayment,
+  onDeletePayment,
 }) => {
   const { isAdmin } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
@@ -270,7 +276,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                 <th className="py-3 px-4">Forma de Pagamento</th>
                 <th className="py-3 px-4 text-right">Valor Pago (MT)</th>
                 <th className="py-3 px-4">Data do Pagamento</th>
-                <th className="py-3 px-4 text-right">Recibo PDF</th>
+                <th className="py-3 px-4 text-right">Recibo & Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -296,14 +302,43 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                     {new Date(p.paymentDate).toLocaleString('pt-MZ')}
                   </td>
                   <td className="py-3.5 px-4 text-right">
-                    <button
-                      onClick={() => handleDownloadReceipt(p)}
-                      title="Descarregar Recibo Oficial em PDF"
-                      className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-md border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 text-[11px] font-medium transition-colors"
-                    >
-                      <Download className="w-3 h-3 text-emerald-600" />
-                      <span>Recibo PDF</span>
-                    </button>
+                    <div className="flex items-center justify-end space-x-1.5">
+                      <button
+                        onClick={() => handleDownloadReceipt(p)}
+                        title="Descarregar Recibo Oficial em PDF"
+                        className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-md border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 text-[11px] font-medium transition-colors"
+                      >
+                        <Download className="w-3 h-3 text-emerald-600" />
+                        <span className="hidden sm:inline">Recibo</span>
+                      </button>
+
+                      {isAdmin && (
+                        <>
+                          <button
+                            onClick={() => onEditPayment(p)}
+                            title="Editar Dados do Pagamento"
+                            className="p-1 rounded-md border border-slate-200 hover:border-amber-400 hover:bg-amber-50 text-slate-500 hover:text-amber-700 transition-colors"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `Tem a certeza que deseja eliminar o registo de pagamento do recibo ${p.receiptNumber} (${p.clientName} - ${formatCurrencyMT(p.amountPaid)})?`
+                                )
+                              ) {
+                                onDeletePayment(p);
+                              }
+                            }}
+                            title="Eliminar Registo de Pagamento"
+                            className="p-1 rounded-md border border-slate-200 hover:border-rose-400 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

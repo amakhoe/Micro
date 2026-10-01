@@ -1,11 +1,19 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { Client, CreditApplication, PaymentRecord } from '@/types';
 import { formatCurrencyMT } from '@/lib/credit-calculator';
 import { generatePortfolioReportPDF, generatePaymentReceiptPDF } from '@/lib/pdf-generator';
 import { exportCompletePortfolioExcel } from '@/lib/excel-generator';
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip as RechartsTooltip,
+} from 'recharts';
 import {
   Users,
   TrendingUp,
@@ -32,6 +40,10 @@ import {
   ShieldAlert,
   Eye,
   Lock,
+  PieChart as PieChartIcon,
+  XCircle,
+  FileCheck,
+  Filter,
 } from 'lucide-react';
 
 export interface DueAlertItem {
@@ -74,6 +86,115 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 }) => {
   const { user, isAdmin, isViewer } = useAuth();
   const [alertFilter, setAlertFilter] = useState<'7days' | 'overdue' | 'all'>('7days');
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Consolidate credit applications by status for donut chart visualization (Approved, Pending, Rejected)
+  const creditStatusData = useMemo(() => {
+    // 1. Approved (Aprovados): Includes 'aprovado', 'desembolsado', and 'liquidado'
+    const approvedList = credits.filter(
+      (c) => c.status === 'aprovado' || c.status === 'desembolsado' || c.status === 'liquidado'
+    );
+    const activeDisbursed = credits.filter((c) => c.status === 'desembolsado');
+    const fullyLiquidated = credits.filter((c) => c.status === 'liquidado');
+    const pendingDisbursement = credits.filter((c) => c.status === 'aprovado');
+
+    // 2. Pending (Pendentes): 'pendente'
+    const pendingList = credits.filter((c) => c.status === 'pendente');
+
+    // 3. Rejected (Recusados): 'recusado'
+    const rejectedList = credits.filter((c) => c.status === 'recusado');
+
+    const total = credits.length;
+
+    const approvedAmount = approvedList.reduce((sum, c) => sum + c.requestedAmount, 0);
+    const pendingAmount = pendingList.reduce((sum, c) => sum + c.requestedAmount, 0);
+    const rejectedAmount = rejectedList.reduce((sum, c) => sum + c.requestedAmount, 0);
+    const totalAmount = approvedAmount + pendingAmount + rejectedAmount;
+
+    const approvedPct = total > 0 ? Number(((approvedList.length / total) * 100).toFixed(1)) : 0;
+    const pendingPct = total > 0 ? Number(((pendingList.length / total) * 100).toFixed(1)) : 0;
+    const rejectedPct = total > 0 ? Number(((rejectedList.length / total) * 100).toFixed(1)) : 0;
+
+    const chartData = [
+      {
+        id: 'approved',
+        name: 'Aprovados (Approved)',
+        shortName: 'Aprovados',
+        statusKey: 'approved',
+        value: approvedList.length,
+        amount: approvedAmount,
+        color: '#10b981', // emerald-500
+        secondaryColor: '#059669',
+        badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        dotColor: 'bg-emerald-500',
+        barColor: 'bg-emerald-500',
+        percentage: approvedPct,
+        details: `${activeDisbursed.length} ativos • ${fullyLiquidated.length} liquidados • ${pendingDisbursement.length} por desembolsar`,
+        description: 'Propostas com parecer favorável, garantias validadas e contratos firmados.',
+      },
+      {
+        id: 'pending',
+        name: 'Pendentes (Pending)',
+        shortName: 'Pendentes',
+        statusKey: 'pending',
+        value: pendingList.length,
+        amount: pendingAmount,
+        color: '#f59e0b', // amber-500
+        secondaryColor: '#d97706',
+        badgeBg: 'bg-amber-50 text-amber-800 border-amber-200',
+        dotColor: 'bg-amber-500',
+        barColor: 'bg-amber-500',
+        percentage: pendingPct,
+        details: `${pendingList.length} aguardando análise documental e parecer da comissão`,
+        description: 'Simulações submetidas em scoring de risco e validação de rendimentos.',
+      },
+      {
+        id: 'rejected',
+        name: 'Recusados (Rejected)',
+        shortName: 'Recusados',
+        statusKey: 'rejected',
+        value: rejectedList.length,
+        amount: rejectedAmount,
+        color: '#f43f5e', // rose-500
+        secondaryColor: '#e11d48',
+        badgeBg: 'bg-rose-50 text-rose-700 border-rose-200',
+        dotColor: 'bg-rose-500',
+        barColor: 'bg-rose-500',
+        percentage: rejectedPct,
+        details: `${rejectedList.length} não qualificados pelo perfil ou taxa de esforço`,
+        description: 'Pedidos indeferidos devido a capacidade de pagamento ou garantias insuficientes.',
+      },
+    ];
+
+    const hasData = total > 0;
+    const approvalRate = total > 0 ? ((approvedList.length / total) * 100).toFixed(1) : '0.0';
+    const averageTicket = total > 0 ? Math.round(totalAmount / total) : 0;
+
+    return {
+      total,
+      hasData,
+      approvedList,
+      pendingList,
+      rejectedList,
+      activeDisbursed,
+      fullyLiquidated,
+      pendingDisbursement,
+      approvedAmount,
+      pendingAmount,
+      rejectedAmount,
+      totalAmount,
+      approvedPct,
+      pendingPct,
+      rejectedPct,
+      approvalRate,
+      averageTicket,
+      chartData,
+    };
+  }, [credits]);
 
   // Compute pending installment alerts
   const allAlerts: DueAlertItem[] = useMemo(() => {
@@ -541,6 +662,305 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </button>
       </div>
+
+      {/* SUMMARY DONUT CHART: DISTRIBUIÇÃO DE PROPOSTAS POR ESTADO (APPROVED, PENDING, REJECTED) */}
+      <section
+        id="section-dashboard-status-donut"
+        className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+      >
+        {/* Card Header */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/90 via-white to-emerald-50/30 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center justify-center shrink-0 shadow-xs">
+              <PieChartIcon className="w-5 h-5 text-emerald-700" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                <h2 className="text-sm font-bold text-slate-900 tracking-tight">
+                  Distribuição de Propostas por Estado
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                  {creditStatusData.total} {creditStatusData.total === 1 ? 'proposta registada' : 'propostas registadas'}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono">
+                  {creditStatusData.approvalRate}% taxa de aprovação
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Gráfico resumo de candidatos por estado: <strong className="text-emerald-700 font-medium">Aprovados (Approved)</strong>, <strong className="text-amber-700 font-medium">Pendentes (Pending)</strong> e <strong className="text-rose-700 font-medium">Recusados (Rejected)</strong>.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 shrink-0 self-start md:self-auto">
+            {isAdmin && (
+              <button
+                type="button"
+                id="btn-donut-new-credit"
+                onClick={onOpenNewCredit}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors"
+                title="Simular e submeter nova proposta de crédito"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Nova Proposta</span>
+              </button>
+            )}
+            <button
+              type="button"
+              id="btn-donut-view-all-credits"
+              onClick={() => onNavigateTab('credits')}
+              className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-emerald-300 hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors"
+            >
+              <span>Ver Propostas</span>
+              <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
+            </button>
+          </div>
+        </div>
+
+        {/* Card Body: Donut Chart on Left, Status Detail Cards on Right */}
+        <div className="p-4 sm:p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+            
+            {/* Left Column: Recharts Donut Chart */}
+            <div className="lg:col-span-5 flex flex-col items-center justify-center p-3 rounded-xl bg-slate-50/50 border border-slate-100">
+              <div className="relative w-full max-w-[280px] h-64 flex items-center justify-center">
+                {isMounted ? (
+                  <>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <RechartsTooltip
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const item = payload[0].payload as (typeof creditStatusData.chartData)[0];
+                              return (
+                                <div className="bg-slate-900/95 backdrop-blur-sm text-white p-3 rounded-xl shadow-xl border border-slate-700 text-xs min-w-[210px] z-50">
+                                  <div className="flex items-center space-x-2 mb-2 pb-1.5 border-b border-slate-800">
+                                    <span
+                                      className="w-3 h-3 rounded-full shrink-0 shadow-xs"
+                                      style={{ backgroundColor: item.color }}
+                                    />
+                                    <span className="font-bold text-slate-100">{item.name}</span>
+                                  </div>
+                                  <div className="space-y-1.5 font-sans">
+                                    <div className="flex justify-between items-center text-slate-300">
+                                      <span>Quantidade:</span>
+                                      <span className="font-bold text-white font-mono">
+                                        {item.value} ({item.percentage}%)
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-slate-300">
+                                      <span>Volume Solicitado:</span>
+                                      <span className="font-bold text-emerald-400 font-mono">
+                                        {formatCurrencyMT(item.amount)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="mt-2 pt-1.5 border-t border-slate-800 text-[10px] text-slate-400 leading-tight">
+                                    {item.details}
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Pie
+                          data={
+                            creditStatusData.hasData
+                              ? creditStatusData.chartData.filter((d) => d.value > 0)
+                              : [{ name: 'Sem Propostas', value: 1, color: '#e2e8f0', percentage: 0, amount: 0, details: '' }]
+                          }
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={68}
+                          outerRadius={96}
+                          paddingAngle={
+                            creditStatusData.hasData &&
+                            creditStatusData.chartData.filter((d) => d.value > 0).length > 1
+                              ? 4
+                              : 0
+                          }
+                          dataKey="value"
+                          nameKey="name"
+                          animationDuration={700}
+                        >
+                          {creditStatusData.hasData ? (
+                            creditStatusData.chartData
+                              .filter((d) => d.value > 0)
+                              .map((entry) => (
+                                <Cell
+                                  key={`donut-slice-${entry.id}`}
+                                  fill={entry.color}
+                                  stroke="#ffffff"
+                                  strokeWidth={2}
+                                  className="cursor-pointer transition-opacity hover:opacity-90 outline-none"
+                                />
+                              ))
+                          ) : (
+                            <Cell fill="#e2e8f0" stroke="#cbd5e1" strokeWidth={1} />
+                          )}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+
+                    {/* Donut Center Display */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
+                      <span className="text-3xl font-extrabold font-mono text-slate-900 leading-none">
+                        {creditStatusData.total}
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                        {creditStatusData.total === 1 ? 'Proposta' : 'Propostas'}
+                      </span>
+                      <span className="text-[10px] text-emerald-600 font-semibold mt-0.5">
+                        {creditStatusData.hasData
+                          ? `${creditStatusData.approvalRate}% aprovadas`
+                          : 'Aguardando dados'}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-24 h-24 rounded-full border-4 border-slate-200 border-t-emerald-600 animate-spin" />
+                )}
+              </div>
+
+              {/* Chart Mini-Legend */}
+              <div className="w-full flex items-center justify-center flex-wrap gap-2.5 pt-2 border-t border-slate-200/60 mt-2 text-xs">
+                {creditStatusData.chartData.map((item) => (
+                  <div key={`legend-${item.id}`} className="flex items-center space-x-1.5 text-[11px]">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className="text-slate-600 font-medium">{item.shortName}:</span>
+                    <span className="font-bold text-slate-900 font-mono">
+                      {item.value} <span className="text-slate-400 font-normal">({item.percentage}%)</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right Column: Detailed Status Breakdown Cards */}
+            <div className="lg:col-span-7 space-y-3">
+              {creditStatusData.chartData.map((item) => {
+                let StatusIcon = CheckCircle2;
+                if (item.statusKey === 'pending') StatusIcon = Clock;
+                if (item.statusKey === 'rejected') StatusIcon = XCircle;
+
+                return (
+                  <div
+                    key={`status-card-${item.id}`}
+                    id={`status-card-${item.id}`}
+                    onClick={() => onNavigateTab('credits')}
+                    className="p-3.5 sm:p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs transition-all cursor-pointer group"
+                    title={`Ver propostas no estado ${item.name}`}
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <div
+                          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                          style={{ backgroundColor: `${item.color}15`, color: item.color }}
+                        >
+                          <StatusIcon className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5 truncate">
+                            <span>{item.name}</span>
+                          </h3>
+                          <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                            {item.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <div className="flex items-center justify-end space-x-1.5">
+                          <span
+                            className="text-xs font-mono font-bold px-2 py-0.5 rounded-full border"
+                            style={{
+                              backgroundColor: `${item.color}12`,
+                              color: item.secondaryColor,
+                              borderColor: `${item.color}35`,
+                            }}
+                          >
+                            {item.value} {item.value === 1 ? 'proposta' : 'propostas'}
+                          </span>
+                          <span className="text-xs font-mono font-bold text-slate-900">
+                            {item.percentage}%
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-mono font-bold text-slate-700 block mt-0.5">
+                          {formatCurrencyMT(item.amount)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Percentage Progress Bar */}
+                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mt-1 mb-2">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${item.percentage}%`,
+                          backgroundColor: item.color,
+                        }}
+                      />
+                    </div>
+
+                    {/* Card Sub-details Footer */}
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
+                      <span className="truncate pr-2">{item.details}</span>
+                      <span className="text-emerald-700 group-hover:underline text-[10px] font-semibold shrink-0 flex items-center space-x-0.5">
+                        <span>Filtrar</span>
+                        <ChevronRight className="w-3 h-3" />
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+          </div>
+
+          {/* Consolidate Key Financial Ratio Bar */}
+          <div className="mt-5 pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50/70 p-3.5 rounded-xl border">
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                Taxa de Aprovação Global
+              </span>
+              <span className="text-base font-bold font-mono text-emerald-700">
+                {creditStatusData.approvalRate}%
+              </span>
+              <span className="text-[10px] text-slate-500 block">
+                {creditStatusData.approvedList.length} de {creditStatusData.total} propostas validadas
+              </span>
+            </div>
+
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                Ticket Médio por Proposta
+              </span>
+              <span className="text-base font-bold font-mono text-slate-800">
+                {formatCurrencyMT(creditStatusData.averageTicket)}
+              </span>
+              <span className="text-[10px] text-slate-500 block">
+                Média do montante solicitado pelos empreendedores
+              </span>
+            </div>
+
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                Volume Total em Propostas
+              </span>
+              <span className="text-base font-bold font-mono text-slate-900">
+                {formatCurrencyMT(creditStatusData.totalAmount)}
+              </span>
+              <span className="text-[10px] text-slate-500 block">
+                Soma de todas as propostas submetidas à Bayete
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* SECTOR / SECTION: ALERTAS DE VENCIMENTO (PRÓXIMOS 7 DIAS) */}
       <section id="section-dashboard-alerts" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
