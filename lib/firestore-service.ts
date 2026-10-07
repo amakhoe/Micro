@@ -43,6 +43,25 @@ let memoryClients: Client[] = [];
 let memoryCredits: CreditApplication[] = [];
 let memoryPayments: PaymentRecord[] = [];
 
+function loadLocalCache<T>(key: string): T[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalCache<T>(key: string, data: T[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
 // ==========================================
 // CLIENTS
 // ==========================================
@@ -50,19 +69,30 @@ let memoryPayments: PaymentRecord[] = [];
 export async function fetchClients(): Promise<Client[]> {
   try {
     const colRef = collection(db, CLIENTS_COLLECTION);
-    const snapshot = await getDocs(colRef);
-    const clients: Client[] = [];
-    snapshot.forEach((d) => {
-      clients.push({ id: d.id, ...d.data() } as Client);
-    });
-    // Sort in memory by createdAt descending
-    clients.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-    memoryClients = clients;
-    return clients;
+    // Timeout getDocs after 6 seconds if network is slow to avoid UI freeze
+    const snapshotPromise = getDocs(colRef);
+    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000));
+    const snapshot = await Promise.race([snapshotPromise, timeoutPromise]);
+
+    if (snapshot && typeof (snapshot as any).forEach === 'function') {
+      const clients: Client[] = [];
+      (snapshot as any).forEach((d: any) => {
+        clients.push({ id: d.id, ...d.data() } as Client);
+      });
+      // Sort in memory by createdAt descending
+      clients.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      memoryClients = clients;
+      saveLocalCache('bayete_cached_clients', clients);
+      return clients;
+    }
   } catch (error) {
-    console.error('Erro ao obter clientes do Firestore:', error);
-    return memoryClients;
+    console.warn('Aviso ao obter clientes do Firestore (a usar cache):', error);
   }
+
+  if (memoryClients.length === 0) {
+    memoryClients = loadLocalCache<Client>('bayete_cached_clients');
+  }
+  return memoryClients;
 }
 
 export async function addClientDoc(client: Omit<Client, 'id'>): Promise<Client> {
@@ -76,6 +106,7 @@ export async function addClientDoc(client: Omit<Client, 'id'>): Promise<Client> 
     const docRef = await addDoc(colRef, newClientData);
     const created: Client = { id: docRef.id, ...newClientData };
     memoryClients = [created, ...memoryClients.filter((c) => c.id !== created.id)];
+    saveLocalCache('bayete_cached_clients', memoryClients);
     return created;
   } catch (error) {
     console.error('Erro ao adicionar cliente no Firestore:', error);
@@ -89,6 +120,7 @@ export async function updateClientDoc(id: string, updates: Partial<Client>): Pro
     const docRef = doc(db, CLIENTS_COLLECTION, id);
     await updateDoc(docRef, cleanUpdates);
     memoryClients = memoryClients.map((c) => (c.id === id ? { ...c, ...cleanUpdates } : c));
+    saveLocalCache('bayete_cached_clients', memoryClients);
   } catch (error) {
     console.error('Erro ao atualizar cliente no Firestore:', error);
     throw error;
@@ -100,6 +132,7 @@ export async function deleteClientDoc(id: string): Promise<void> {
     const docRef = doc(db, CLIENTS_COLLECTION, id);
     await deleteDoc(docRef);
     memoryClients = memoryClients.filter((c) => c.id !== id);
+    saveLocalCache('bayete_cached_clients', memoryClients);
   } catch (error) {
     console.error('Erro ao eliminar cliente no Firestore:', error);
     throw error;
@@ -113,19 +146,29 @@ export async function deleteClientDoc(id: string): Promise<void> {
 export async function fetchCredits(): Promise<CreditApplication[]> {
   try {
     const colRef = collection(db, CREDITS_COLLECTION);
-    const snapshot = await getDocs(colRef);
-    const credits: CreditApplication[] = [];
-    snapshot.forEach((d) => {
-      credits.push({ id: d.id, ...d.data() } as CreditApplication);
-    });
-    // Sort in memory by createdAt descending
-    credits.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-    memoryCredits = credits;
-    return credits;
+    const snapshotPromise = getDocs(colRef);
+    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000));
+    const snapshot = await Promise.race([snapshotPromise, timeoutPromise]);
+
+    if (snapshot && typeof (snapshot as any).forEach === 'function') {
+      const credits: CreditApplication[] = [];
+      (snapshot as any).forEach((d: any) => {
+        credits.push({ id: d.id, ...d.data() } as CreditApplication);
+      });
+      // Sort in memory by createdAt descending
+      credits.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      memoryCredits = credits;
+      saveLocalCache('bayete_cached_credits', credits);
+      return credits;
+    }
   } catch (error) {
-    console.error('Erro ao obter propostas de crédito do Firestore:', error);
-    return memoryCredits;
+    console.warn('Aviso ao obter propostas de crédito do Firestore (a usar cache):', error);
   }
+
+  if (memoryCredits.length === 0) {
+    memoryCredits = loadLocalCache<CreditApplication>('bayete_cached_credits');
+  }
+  return memoryCredits;
 }
 
 export async function addCreditDoc(credit: Omit<CreditApplication, 'id'>): Promise<CreditApplication> {
@@ -139,6 +182,7 @@ export async function addCreditDoc(credit: Omit<CreditApplication, 'id'>): Promi
     const docRef = await addDoc(colRef, newCreditData);
     const created: CreditApplication = { id: docRef.id, ...newCreditData };
     memoryCredits = [created, ...memoryCredits.filter((c) => c.id !== created.id)];
+    saveLocalCache('bayete_cached_credits', memoryCredits);
     return created;
   } catch (error) {
     console.error('Erro crítico ao gravar proposta de crédito no Firestore:', error);
@@ -166,6 +210,7 @@ export async function updateCreditStatusDoc(
     const docRef = doc(db, CREDITS_COLLECTION, id);
     await setDoc(docRef, cleanUpdates, { merge: true });
     memoryCredits = memoryCredits.map((c) => (c.id === id ? { ...c, ...cleanUpdates } : c));
+    saveLocalCache('bayete_cached_credits', memoryCredits);
   } catch (error) {
     console.error('Erro ao atualizar estado do crédito no Firestore:', error);
     throw error;
@@ -178,6 +223,7 @@ export async function updateCreditDoc(id: string, updates: Partial<CreditApplica
     const docRef = doc(db, CREDITS_COLLECTION, id);
     await updateDoc(docRef, cleanUpdates);
     memoryCredits = memoryCredits.map((c) => (c.id === id ? { ...c, ...cleanUpdates } : c));
+    saveLocalCache('bayete_cached_credits', memoryCredits);
   } catch (error) {
     console.error('Erro ao atualizar proposta de crédito no Firestore:', error);
     throw error;
@@ -189,6 +235,7 @@ export async function deleteCreditDoc(id: string): Promise<void> {
     const docRef = doc(db, CREDITS_COLLECTION, id);
     await deleteDoc(docRef);
     memoryCredits = memoryCredits.filter((c) => c.id !== id);
+    saveLocalCache('bayete_cached_credits', memoryCredits);
   } catch (error) {
     console.error('Erro ao eliminar proposta de crédito no Firestore:', error);
     throw error;
@@ -202,21 +249,31 @@ export async function deleteCreditDoc(id: string): Promise<void> {
 export async function fetchPayments(): Promise<PaymentRecord[]> {
   try {
     const colRef = collection(db, PAYMENTS_COLLECTION);
-    const snapshot = await getDocs(colRef);
-    const payments: PaymentRecord[] = [];
-    snapshot.forEach((d) => {
-      payments.push({ id: d.id, ...d.data() } as PaymentRecord);
-    });
-    // Sort in memory by paymentDate or createdAt descending
-    payments.sort((a, b) =>
-      (b.paymentDate || b.createdAt || '').localeCompare(a.paymentDate || a.createdAt || '')
-    );
-    memoryPayments = payments;
-    return payments;
+    const snapshotPromise = getDocs(colRef);
+    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000));
+    const snapshot = await Promise.race([snapshotPromise, timeoutPromise]);
+
+    if (snapshot && typeof (snapshot as any).forEach === 'function') {
+      const payments: PaymentRecord[] = [];
+      (snapshot as any).forEach((d: any) => {
+        payments.push({ id: d.id, ...d.data() } as PaymentRecord);
+      });
+      // Sort in memory by paymentDate or createdAt descending
+      payments.sort((a, b) =>
+        (b.paymentDate || b.createdAt || '').localeCompare(a.paymentDate || a.createdAt || '')
+      );
+      memoryPayments = payments;
+      saveLocalCache('bayete_cached_payments', payments);
+      return payments;
+    }
   } catch (error) {
-    console.error('Erro ao obter histórico de pagamentos do Firestore:', error);
-    return memoryPayments;
+    console.warn('Aviso ao obter histórico de pagamentos do Firestore (a usar cache):', error);
   }
+
+  if (memoryPayments.length === 0) {
+    memoryPayments = loadLocalCache<PaymentRecord>('bayete_cached_payments');
+  }
+  return memoryPayments;
 }
 
 export async function recordPaymentDoc(
@@ -293,6 +350,8 @@ export async function recordPaymentDoc(
 
     memoryPayments = [savedPayment, ...memoryPayments];
     memoryCredits = memoryCredits.map((c) => (c.id === credit.id ? updatedCredit : c));
+    saveLocalCache('bayete_cached_payments', memoryPayments);
+    saveLocalCache('bayete_cached_credits', memoryCredits);
 
     return { payment: savedPayment, updatedCredit };
   } catch (error) {
@@ -307,6 +366,7 @@ export async function updatePaymentDoc(id: string, updates: Partial<PaymentRecor
     const docRef = doc(db, PAYMENTS_COLLECTION, id);
     await updateDoc(docRef, cleanUpdates);
     memoryPayments = memoryPayments.map((p) => (p.id === id ? { ...p, ...cleanUpdates } : p));
+    saveLocalCache('bayete_cached_payments', memoryPayments);
   } catch (error) {
     console.error('Erro ao atualizar pagamento no Firestore:', error);
     throw error;
@@ -323,6 +383,7 @@ export async function deletePaymentDoc(
     const docRef = doc(db, PAYMENTS_COLLECTION, id);
     await deleteDoc(docRef);
     memoryPayments = memoryPayments.filter((p) => p.id !== id);
+    saveLocalCache('bayete_cached_payments', memoryPayments);
 
     // If related credit info is provided, adjust remaining balance and installment state
     if (creditId && amountPaid) {

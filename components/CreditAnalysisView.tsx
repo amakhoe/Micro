@@ -26,6 +26,7 @@ import {
   Lock,
   Edit2,
   Trash2,
+  Calendar,
 } from 'lucide-react';
 
 interface CreditAnalysisViewProps {
@@ -306,7 +307,10 @@ export const CreditAnalysisView: React.FC<CreditAnalysisViewProps> = ({
                     {cr.riskAnalysis.effortRate}% da Renda Mensal
                   </span>
                   <span>•</span>
-                  <span>Submetido em {new Date(cr.createdAt).toLocaleDateString('pt-MZ')}</span>
+                  <span className="inline-flex items-center space-x-1 font-medium text-slate-700">
+                    <Calendar className="w-3 h-3 text-emerald-600" />
+                    <span>Data da Proposta: {new Date(cr.createdAt).toLocaleDateString('pt-MZ')}</span>
+                  </span>
                 </div>
 
                 {/* Workflow Buttons */}

@@ -15,6 +15,8 @@ import {
   UserCheck,
   CheckCircle2,
   FileText,
+  RotateCcw,
+  Trash2,
 } from 'lucide-react';
 
 interface CreditModalProps {
@@ -22,6 +24,7 @@ interface CreditModalProps {
   onClose: () => void;
   clients: Client[];
   onSave: (creditData: Omit<CreditApplication, 'id'>, creditId?: string) => Promise<void>;
+  onDelete?: (creditId: string) => Promise<void>;
   preselectedClientId?: string;
   creditToEdit?: CreditApplication | null;
 }
@@ -31,6 +34,7 @@ export const CreditModal: React.FC<CreditModalProps> = ({
   onClose,
   clients,
   onSave,
+  onDelete,
   preselectedClientId,
   creditToEdit,
 }) => {
@@ -41,7 +45,9 @@ export const CreditModal: React.FC<CreditModalProps> = ({
   const [purpose, setPurpose] = useState<string>('Compra de mercadorias e capital de giro');
   const [analystNotes, setAnalystNotes] = useState<string>('');
   const [initialStatus, setInitialStatus] = useState<CreditApplication['status']>('pendente');
+  const [proposalDate, setProposalDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -53,6 +59,9 @@ export const CreditModal: React.FC<CreditModalProps> = ({
       setPurpose(creditToEdit.purpose);
       setAnalystNotes(creditToEdit.analystNotes || '');
       setInitialStatus(creditToEdit.status);
+      setProposalDate(
+        creditToEdit.createdAt ? creditToEdit.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]
+      );
     } else if (preselectedClientId) {
       setSelectedClientId(preselectedClientId);
       setAmount(20000);
@@ -61,6 +70,7 @@ export const CreditModal: React.FC<CreditModalProps> = ({
       setPurpose('Compra de mercadorias e capital de giro');
       setAnalystNotes('');
       setInitialStatus('pendente');
+      setProposalDate(new Date().toISOString().split('T')[0]);
     } else if (clients.length > 0 && !selectedClientId) {
       setSelectedClientId(clients[0].id);
       setAmount(20000);
@@ -69,6 +79,7 @@ export const CreditModal: React.FC<CreditModalProps> = ({
       setPurpose('Compra de mercadorias e capital de giro');
       setAnalystNotes('');
       setInitialStatus('pendente');
+      setProposalDate(new Date().toISOString().split('T')[0]);
     }
   }, [creditToEdit, preselectedClientId, clients, selectedClientId]);
 
@@ -78,8 +89,39 @@ export const CreditModal: React.FC<CreditModalProps> = ({
 
   const calcResult = useMemo(() => {
     const salary = selectedClient ? selectedClient.salary : 25000;
-    return calculateCredit(amount, termMonths, interestRate, salary, new Date());
-  }, [amount, termMonths, interestRate, selectedClient]);
+    const startDate = proposalDate ? new Date(proposalDate + 'T12:00:00') : new Date();
+    return calculateCredit(amount, termMonths, interestRate, salary, startDate);
+  }, [amount, termMonths, interestRate, selectedClient, proposalDate]);
+
+  const handleResetForm = () => {
+    setAmount(0);
+    setTermMonths(3);
+    setInterestRate(5);
+    setPurpose('');
+    setAnalystNotes('');
+    setInitialStatus('pendente');
+    setProposalDate(new Date().toISOString().split('T')[0]);
+    setError(null);
+  };
+
+  const handleDeleteProposal = async () => {
+    if (!creditToEdit || !onDelete) return;
+    if (
+      window.confirm(
+        `Tem a certeza que deseja eliminar esta proposta de crédito (${formatCurrencyMT(creditToEdit.requestedAmount)})? Esta operação não pode ser anulada.`
+      )
+    ) {
+      setIsDeleting(true);
+      try {
+        await onDelete(creditToEdit.id);
+        onClose();
+      } catch (err: any) {
+        setError(err.message || 'Erro ao eliminar proposta de crédito.');
+      } finally {
+        setIsDeleting(false);
+      }
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -106,7 +148,10 @@ export const CreditModal: React.FC<CreditModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      const now = new Date().toISOString();
+      const createdTimestamp = proposalDate
+        ? new Date(proposalDate + 'T12:00:00').toISOString()
+        : new Date().toISOString();
+
       const creditData: Omit<CreditApplication, 'id'> = {
         clientId: selectedClient.id,
         clientName: selectedClient.name,
@@ -130,14 +175,14 @@ export const CreditModal: React.FC<CreditModalProps> = ({
         ...(creditToEdit?.approvedAt
           ? { approvedAt: creditToEdit.approvedAt }
           : initialStatus === 'aprovado' || initialStatus === 'desembolsado'
-          ? { approvedAt: now }
+          ? { approvedAt: createdTimestamp }
           : {}),
         ...(creditToEdit?.disbursedAt
           ? { disbursedAt: creditToEdit.disbursedAt }
           : initialStatus === 'desembolsado'
-          ? { disbursedAt: now }
+          ? { disbursedAt: createdTimestamp }
           : {}),
-        createdAt: creditToEdit?.createdAt || now,
+        createdAt: createdTimestamp,
         installments: calcResult.installments,
         totalPaid: creditToEdit?.totalPaid || 0,
         remainingBalance: Math.max(0, calcResult.totalRepayment - (creditToEdit?.totalPaid || 0)),
@@ -181,14 +226,25 @@ export const CreditModal: React.FC<CreditModalProps> = ({
               </h3>
               <p className="text-[11px] text-slate-300">
                 {creditToEdit
-                  ? 'Modificar montante, prazo, taxa de juro e dados da proposta'
+                  ? 'Modificar montante, data da proposta, prazo e parecer'
                   : 'Simulador financeiro rápido com análise automatizada de esforço e risco'}
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-md">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={handleResetForm}
+              title="Limpar todos os campos digitados"
+              className="inline-flex items-center space-x-1 px-2.5 py-1 text-[11px] font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-md transition-colors"
+            >
+              <RotateCcw className="w-3 h-3 text-slate-300" />
+              <span>Limpar Dados</span>
+            </button>
+            <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-md">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Modal Form */}
@@ -238,37 +294,66 @@ export const CreditModal: React.FC<CreditModalProps> = ({
                 </div>
               )}
 
-              {/* Montante Solicitado (Input Type) */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label htmlFor="credit-amount-input" className="text-xs font-semibold text-slate-700">
-                    Montante Solicitado (MT) *
-                  </label>
-                  <span className="font-bold text-xs text-emerald-700 font-mono bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    {formatCurrencyMT(amount || 0)}
-                  </span>
+              {/* Montante Solicitado & Data da Proposta de Crédito */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Montante Solicitado (Input Type) */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label htmlFor="credit-amount-input" className="text-xs font-semibold text-slate-700">
+                      Montante Solicitado (MT) *
+                    </label>
+                    <span className="font-bold text-xs text-emerald-700 font-mono bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      {formatCurrencyMT(amount || 0)}
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <Coins className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      id="credit-amount-input"
+                      type="number"
+                      required
+                      min="1"
+                      step="any"
+                      value={amount === 0 ? '' : amount}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setAmount(val === '' ? 0 : Number(val));
+                      }}
+                      placeholder="Ex: 20000"
+                      className="w-full pl-9 pr-10 py-2 text-xs font-semibold rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-slate-900 bg-white"
+                    />
+                    <span className="absolute right-3 top-2 text-xs font-bold text-slate-400">MT</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Introduza o montante pretendido.
+                  </p>
                 </div>
-                <div className="relative">
-                  <Coins className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                  <input
-                    id="credit-amount-input"
-                    type="number"
-                    required
-                    min="1"
-                    step="any"
-                    value={amount === 0 ? '' : amount}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setAmount(val === '' ? 0 : Number(val));
-                    }}
-                    placeholder="Introduza o montante solicitado (Ex: 2890 ou 1239)"
-                    className="w-full pl-9 pr-12 py-2 text-xs font-semibold rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-slate-900 bg-white"
-                  />
-                  <span className="absolute right-3 top-2 text-xs font-bold text-slate-400">MT</span>
+
+                {/* Data da Proposta de Crédito */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label htmlFor="credit-proposal-date" className="text-xs font-semibold text-slate-700 flex items-center space-x-1">
+                      <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Data da Proposta *</span>
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {proposalDate}
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      id="credit-proposal-date"
+                      type="date"
+                      required
+                      value={proposalDate}
+                      onChange={(e) => setProposalDate(e.target.value)}
+                      className="w-full px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-slate-900 bg-white"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Define o início oficial das parcelas.
+                  </p>
                 </div>
-                <p className="text-[10.5px] text-slate-500 mt-1">
-                  Introduza qualquer montante exato pretendido (ex: 1.239 MT, 2.890 MT). Não há restrição de múltiplos.
-                </p>
               </div>
 
               {/* Term and Interest Rate in 2 Columns */}
@@ -500,31 +585,59 @@ export const CreditModal: React.FC<CreditModalProps> = ({
           </div>
 
           {/* Footer Buttons */}
-          <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
-            <button
-              id="credit-form-cancel"
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              id="credit-form-submit"
-              type="submit"
-              disabled={isSubmitting}
-              className="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors flex items-center space-x-1.5 disabled:opacity-60"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>
-                {isSubmitting
-                  ? 'A Gravar...'
-                  : creditToEdit
-                  ? 'Guardar Alterações'
-                  : 'Confirmar e Criar Microcrédito'}
-              </span>
-            </button>
+          <div className="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                onClick={handleResetForm}
+                disabled={isSubmitting || isDeleting}
+                title="Limpar todos os campos digitados para valores em branco"
+                className="px-3 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors flex items-center space-x-1.5 disabled:opacity-60"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                <span>Limpar / Apagar Dados</span>
+              </button>
+
+              {creditToEdit && onDelete && (
+                <button
+                  type="button"
+                  onClick={handleDeleteProposal}
+                  disabled={isSubmitting || isDeleting}
+                  title="Eliminar permanentemente este documento de crédito da base de dados"
+                  className="px-3 py-2 text-xs font-semibold text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors flex items-center space-x-1.5 disabled:opacity-60"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>{isDeleting ? 'A Eliminar...' : 'Apagar Proposta'}</span>
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center space-x-2.5">
+              <button
+                id="credit-form-cancel"
+                type="button"
+                onClick={onClose}
+                disabled={isSubmitting || isDeleting}
+                className="px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                id="credit-form-submit"
+                type="submit"
+                disabled={isSubmitting || isDeleting}
+                className="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors flex items-center space-x-1.5 disabled:opacity-60"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>
+                  {isSubmitting
+                    ? 'A Gravar...'
+                    : creditToEdit
+                    ? 'Guardar Alterações'
+                    : 'Confirmar e Criar Microcrédito'}
+                </span>
+              </button>
+            </div>
           </div>
         </form>
       </div>

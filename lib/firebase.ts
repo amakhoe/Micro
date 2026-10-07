@@ -1,24 +1,32 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, getFirestore } from 'firebase/firestore';
 import firebaseConfigData from '../firebase-applet-config.json';
 
-const firebaseConfig = {
-  apiKey: firebaseConfigData.apiKey,
-  authDomain: firebaseConfigData.authDomain,
-  projectId: firebaseConfigData.projectId,
-  storageBucket: firebaseConfigData.storageBucket,
-  messagingSenderId: firebaseConfigData.messagingSenderId,
-  appId: firebaseConfigData.appId,
-};
-
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+const app = !getApps().length ? initializeApp(firebaseConfigData) : getApp();
 export const auth = getAuth(app);
 
 // Use custom firestoreDatabaseId if specified, or default
-const dbId = firebaseConfigData.firestoreDatabaseId && firebaseConfigData.firestoreDatabaseId !== '(default)'
-  ? firebaseConfigData.firestoreDatabaseId
-  : undefined;
+const dbId =
+  firebaseConfigData.firestoreDatabaseId &&
+  firebaseConfigData.firestoreDatabaseId !== '(default)'
+    ? firebaseConfigData.firestoreDatabaseId
+    : undefined;
 
-export const db = dbId ? getFirestore(app, dbId) : getFirestore(app);
+// Use initializeFirestore with experimentalForceLongPolling: true to prevent WebChannel streaming
+// timeouts in iframe/proxy environments ("Could not reach Cloud Firestore backend within 10 seconds")
+let dbInstance;
+try {
+  dbInstance = initializeFirestore(
+    app,
+    {
+      experimentalForceLongPolling: true,
+    },
+    dbId
+  );
+} catch {
+  dbInstance = dbId ? getFirestore(app, dbId) : getFirestore(app);
+}
+
+export const db = dbInstance;
 export default app;

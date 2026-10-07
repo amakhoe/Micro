@@ -172,8 +172,13 @@ export function generateClientFilePDF(client: Client, credits: CreditApplication
  */
 export function generateLoanAgreementPDF(credit: CreditApplication) {
   const doc = new jsPDF();
+  const proposalDateFormatted = new Date(credit.createdAt).toLocaleDateString('pt-MZ');
 
-  drawHeader(doc, 'PROPOSTA E CONTRATO DE MICROCRÉDITO', `Contrato Nº: BAY-${credit.id.slice(0, 8).toUpperCase()}`);
+  drawHeader(
+    doc,
+    'PROPOSTA E CONTRATO DE MICROCRÉDITO',
+    `Contrato Nº: BAY-${credit.id.slice(0, 8).toUpperCase()} • Data da Proposta: ${proposalDateFormatted}`
+  );
 
   let y = 50;
 

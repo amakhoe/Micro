@@ -43,7 +43,7 @@ export function exportCreditsExcel(credits: CreditApplication[], filename = 'Bay
     'Recomendação': cr.riskAnalysis.recommendation,
     'Estado': cr.status.toUpperCase(),
     'Finalidade': cr.purpose,
-    'Data Solicitação': new Date(cr.createdAt).toLocaleDateString('pt-MZ'),
+    'Data da Proposta': new Date(cr.createdAt).toLocaleDateString('pt-MZ'),
   }));
 
   const worksheet = XLSX.utils.json_to_sheet(data);

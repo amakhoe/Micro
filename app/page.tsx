@@ -501,6 +501,7 @@ function BayeteApp() {
         }}
         clients={clients}
         onSave={handleSaveCredit}
+        onDelete={handleDeleteCredit}
         preselectedClientId={preselectedCreditClientId}
         creditToEdit={creditToEdit}
       />
