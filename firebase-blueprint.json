@@ -62,6 +62,24 @@
         "createdAt": { "type": "string" }
       },
       "required": ["email", "role"]
+    },
+    "AuditLogRecord": {
+      "title": "AuditLogRecord",
+      "description": "Log simplificado de auditoria que rastreia quem realizou alterações em cada crédito ou pagamento",
+      "type": "object",
+      "properties": {
+        "targetType": { "type": "string", "enum": ["credit", "payment", "client"] },
+        "targetId": { "type": "string" },
+        "targetReference": { "type": "string" },
+        "clientName": { "type": "string" },
+        "actionType": { "type": "string" },
+        "actionLabel": { "type": "string" },
+        "actionDescription": { "type": "string" },
+        "performedBy": { "type": "string" },
+        "performedByEmail": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["targetType", "targetId", "actionType", "performedBy", "timestamp"]
     }
   },
   "firestore": {
@@ -80,6 +98,10 @@
     "/user_profiles/{userId}": {
       "schema": "UserProfile",
       "description": "Coleção de perfis com permissões de utilizadores (admin vs leitor)"
+    },
+    "/audit_logs/{logId}": {
+      "schema": "AuditLogRecord",
+      "description": "Coleção de logs de auditoria de alterações em créditos e pagamentos"
     }
   }
 }

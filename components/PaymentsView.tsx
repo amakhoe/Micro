@@ -2,10 +2,11 @@
 
 import React, { useState, useMemo } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { PaymentRecord, CreditApplication } from '@/types';
+import { PaymentRecord, CreditApplication, AuditLogRecord } from '@/types';
 import { formatCurrencyMT } from '@/lib/credit-calculator';
 import { exportPaymentsExcel } from '@/lib/excel-generator';
 import { generatePaymentReceiptPDF } from '@/lib/pdf-generator';
+import { AuditLogModal } from '@/components/AuditLogModal';
 import {
   CreditCard,
   Search,
@@ -22,11 +23,16 @@ import {
   Lock,
   Edit2,
   Trash2,
+  Bell,
+  AlertTriangle,
+  Loader2,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface PaymentsViewProps {
   payments: PaymentRecord[];
   credits: CreditApplication[];
+  auditLogs?: AuditLogRecord[];
   onOpenNewPayment: (creditId?: string) => void;
   onEditPayment: (payment: PaymentRecord) => void;
   onDeletePayment: (payment: PaymentRecord) => Promise<void>;
@@ -35,6 +41,7 @@ interface PaymentsViewProps {
 export const PaymentsView: React.FC<PaymentsViewProps> = ({
   payments,
   credits,
+  auditLogs = [],
   onOpenNewPayment,
   onEditPayment,
   onDeletePayment,
@@ -42,6 +49,9 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   const { isAdmin } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [methodFilter, setMethodFilter] = useState<string>('todos');
+  const [paymentToDelete, setPaymentToDelete] = useState<PaymentRecord | null>(null);
+  const [isDeletingPayment, setIsDeletingPayment] = useState<boolean>(false);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState<boolean>(false);
 
   const filteredPayments = useMemo(() => {
     return payments.filter((p) => {
@@ -61,7 +71,13 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   }, [payments]);
 
   const activeCreditsToPay = useMemo(() => {
-    return credits.filter((c) => (c.status === 'desembolsado' || c.status === 'aprovado') && c.remainingBalance > 0);
+    return credits.filter((c) => {
+      if (c.status === 'recusado' || c.status === 'liquidado') return false;
+      const rem = typeof c.remainingBalance === 'number' && !isNaN(c.remainingBalance)
+        ? c.remainingBalance
+        : (c.totalRepayment || (c.requestedAmount * 1.15)) - (c.totalPaid || 0);
+      return rem > 0;
+    });
   }, [credits]);
 
   const handleExportExcel = () => {
@@ -111,6 +127,15 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
             <span>Exportar Pagamentos Excel</span>
+          </button>
+
+          <button
+            id="btn-audit-payments-open"
+            onClick={() => setIsAuditModalOpen(true)}
+            className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium shadow-sm transition-colors"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Auditoria</span>
           </button>
 
           {isAdmin ? (
@@ -189,7 +214,10 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {activeCreditsToPay.map((c) => {
-              const pendingInst = c.installments.find((i) => i.status === 'pendente') || c.installments[0];
+              const pendingInst = c.installments?.find((i) => i.status === 'pendente') || c.installments?.[0];
+              const remainingBal = typeof c.remainingBalance === 'number' && !isNaN(c.remainingBalance)
+                ? c.remainingBalance
+                : (c.totalRepayment || (c.requestedAmount * 1.15)) - (c.totalPaid || 0);
               return (
                 <div
                   key={c.id}
@@ -198,10 +226,10 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                   <div>
                     <span className="font-semibold text-xs text-slate-900 block">{c.clientName}</span>
                     <span className="text-[11px] text-slate-500 block">
-                      Próxima: Parcela #{pendingInst?.number} ({pendingInst?.dueDate})
+                      Próxima: Parcela #{pendingInst?.number || 1} {pendingInst?.dueDate ? `(${pendingInst.dueDate})` : ''}
                     </span>
                     <span className="text-[11px] font-bold text-emerald-700 font-mono">
-                      Saldo: {formatCurrencyMT(c.remainingBalance)}
+                      Saldo: {formatCurrencyMT(remainingBal)}
                     </span>
                   </div>
 
@@ -276,6 +304,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                 <th className="py-3 px-4">Forma de Pagamento</th>
                 <th className="py-3 px-4 text-right">Valor Pago (MT)</th>
                 <th className="py-3 px-4">Data do Pagamento</th>
+                <th className="py-3 px-4">Lembrete Cobrança</th>
                 <th className="py-3 px-4 text-right">Recibo & Ações</th>
               </tr>
             </thead>
@@ -301,6 +330,26 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                   <td className="py-3.5 px-4 text-slate-600 text-[11px]">
                     {new Date(p.paymentDate).toLocaleString('pt-MZ')}
                   </td>
+                  <td className="py-3.5 px-4">
+                    {p.reminderDate ? (
+                      <div className="flex flex-col space-y-0.5">
+                        <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 w-fit">
+                          <Bell className="w-2.5 h-2.5 text-amber-600" />
+                          <span>{new Date(p.reminderDate + 'T12:00:00').toLocaleDateString('pt-MZ')}</span>
+                        </span>
+                        {p.reminderNote && (
+                          <span
+                            className="text-[10px] text-slate-500 truncate max-w-[170px] block"
+                            title={p.reminderNote}
+                          >
+                            {p.reminderNote}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-slate-400 text-[11px]">—</span>
+                    )}
+                  </td>
                   <td className="py-3.5 px-4 text-right">
                     <div className="flex items-center justify-end space-x-1.5">
                       <button
@@ -322,15 +371,8 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  `Tem a certeza que deseja eliminar o registo de pagamento do recibo ${p.receiptNumber} (${p.clientName} - ${formatCurrencyMT(p.amountPaid)})?`
-                                )
-                              ) {
-                                onDeletePayment(p);
-                              }
-                            }}
+                            id={`btn-delete-payment-${p.id}`}
+                            onClick={() => setPaymentToDelete(p)}
                             title="Eliminar Registo de Pagamento"
                             className="p-1 rounded-md border border-slate-200 hover:border-rose-400 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors"
                           >
@@ -345,7 +387,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
 
               {filteredPayments.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-500 text-xs">
+                  <td colSpan={8} className="py-8 text-center text-slate-500 text-xs">
                     Nenhum pagamento registado ainda.
                   </td>
                 </tr>
@@ -354,6 +396,93 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           </table>
         </div>
       </div>
+
+      {/* In-app Delete Confirmation Modal */}
+      {paymentToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden p-6 space-y-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  Eliminar Registo de Pagamento?
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  O saldo devedor do crédito será reajustado automaticamente.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">Recibo Nº:</span>
+                <span className="font-mono font-bold text-slate-800">{paymentToDelete.receiptNumber}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">Cliente:</span>
+                <span className="font-bold text-slate-800">{paymentToDelete.clientName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">Valor Amortizado:</span>
+                <span className="font-bold text-rose-600 font-mono">{formatCurrencyMT(paymentToDelete.amountPaid)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">Parcela:</span>
+                <span className="text-slate-700">Prestação #{paymentToDelete.installmentNumber}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setPaymentToDelete(null)}
+                disabled={isDeletingPayment}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                id="btn-confirm-delete-payment"
+                disabled={isDeletingPayment}
+                onClick={async () => {
+                  setIsDeletingPayment(true);
+                  try {
+                    await onDeletePayment(paymentToDelete);
+                    setPaymentToDelete(null);
+                  } finally {
+                    setIsDeletingPayment(false);
+                  }
+                }}
+                className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm transition-colors flex items-center space-x-1.5 disabled:opacity-60"
+              >
+                {isDeletingPayment ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>A eliminar...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Sim, Eliminar Pagamento</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Audit Log Modal */}
+      <AuditLogModal
+        isOpen={isAuditModalOpen}
+        onClose={() => setIsAuditModalOpen(false)}
+        logs={auditLogs}
+        filterTargetType="payment"
+        title="Auditoria de Pagamentos no Firebase"
+        subtitle="Registo de quem gravou, editou ou estornou cada pagamento e recibo"
+      />
     </div>
   );
 };

@@ -62,6 +62,9 @@ export function exportPaymentsExcel(payments: PaymentRecord[], filename = 'Bayet
     'Valor Pago (MT)': p.amountPaid,
     'Método de Pagamento': p.paymentMethod.toUpperCase(),
     'Data de Pagamento': new Date(p.paymentDate).toLocaleDateString('pt-MZ'),
+    'Lembrete Agendado': p.reminderDate ? new Date(p.reminderDate + 'T12:00:00').toLocaleDateString('pt-MZ') : '',
+    'Nota de Lembrete': p.reminderNote || '',
+    'Estado do Lembrete': p.reminderStatus ? p.reminderStatus.toUpperCase() : '',
     'Observações': p.notes || '',
     'Registado Por': p.recordedBy || 'Sistema',
   }));
@@ -183,6 +186,32 @@ export function exportOverdueExcel(
   const worksheet = XLSX.utils.json_to_sheet(data);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Parcelas em Atraso');
+  XLSX.writeFile(workbook, filename);
+}
+
+export function exportAuditLogsExcel(
+  logs: import('@/types').AuditLogRecord[],
+  filename = `Bayete_Logs_Auditoria_${new Date().toISOString().split('T')[0]}.xlsx`
+) {
+  const data = logs.map((log, index) => ({
+    '#': index + 1,
+    'Data e Hora': new Date(log.timestamp).toLocaleString('pt-MZ'),
+    'Tipo de Alvo': log.targetType.toUpperCase(),
+    'Ação': log.actionLabel,
+    'Referência': log.targetReference || log.targetId,
+    'Cliente': log.clientName || 'N/A',
+    'Realizado Por': log.performedBy,
+    'Email Utilizador': log.performedByEmail || 'N/A',
+    'Função': (log.performedByRole || 'admin').toUpperCase(),
+    'Montante (MT)': log.amount || 0,
+    'Estado Anterior': log.previousState || 'N/A',
+    'Novo Estado': log.newState || 'N/A',
+    'Descrição da Alteração': log.actionDescription,
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(data);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Trilha de Auditoria');
   XLSX.writeFile(workbook, filename);
 }
 

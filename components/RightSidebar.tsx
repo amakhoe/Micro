@@ -13,6 +13,7 @@ import {
   Clock,
   Send,
   MoreHorizontal,
+  Bell,
 } from 'lucide-react';
 import { CreditApplication, PaymentRecord } from '@/types';
 import { formatCurrencyMT } from '@/lib/credit-calculator';
@@ -98,6 +99,20 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
         time: 'Há 3 dias',
       },
     ];
+  }, [payments]);
+
+  // Scheduled collection reminders
+  const scheduledReminders = useMemo(() => {
+    return payments
+      .filter((p) => p.reminderDate && p.reminderStatus !== 'cancelado')
+      .slice(0, 3)
+      .map((p) => ({
+        id: p.id,
+        clientName: p.clientName,
+        date: p.reminderDate!,
+        note: p.reminderNote || 'Cobrança agendada',
+        status: p.reminderStatus || 'pendente',
+      }));
   }, [payments]);
 
   // Dedicated credit managers and officers
@@ -220,6 +235,42 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
           ))}
         </div>
       </div>
+
+      {/* Lembretes de Cobrança Agendados */}
+      {scheduledReminders.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-white tracking-tight flex items-center space-x-1.5">
+              <Bell className="w-3.5 h-3.5 text-amber-400" />
+              <span>Lembretes de Cobrança</span>
+            </h3>
+            <span className="text-[10px] font-bold text-amber-400 bg-amber-950/80 border border-amber-800/80 px-2 py-0.5 rounded-full">
+              {scheduledReminders.length} Ativos
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            {scheduledReminders.map((rem) => (
+              <div
+                key={rem.id}
+                className="p-2.5 rounded-xl bg-[#1c221a] border border-amber-900/40 text-xs space-y-1"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-white truncate max-w-[150px]">
+                    {rem.clientName}
+                  </span>
+                  <span className="text-[10px] text-amber-400 font-mono font-bold">
+                    {new Date(rem.date + 'T12:00:00').toLocaleDateString('pt-MZ')}
+                  </span>
+                </div>
+                <p className="text-[10.5px] text-slate-400 line-clamp-2">
+                  {rem.note}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 3. Equipa de Gestão & Apoio */}
       <div>

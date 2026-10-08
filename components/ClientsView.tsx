@@ -24,6 +24,8 @@ import {
   ExternalLink,
   Download,
   Lock,
+  Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface ClientsViewProps {
@@ -47,6 +49,8 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'todos' | 'ativo' | 'em_analise' | 'bloqueado'>('todos');
   const [selectedClientForDetails, setSelectedClientForDetails] = useState<Client | null>(null);
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   const filteredClients = useMemo(() => {
     return clients.filter((c) => {
@@ -272,11 +276,8 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                         {/* Excluir (Admin apenas) */}
                         {isAdmin && (
                           <button
-                            onClick={() => {
-                              if (window.confirm(`Tem a certeza que deseja remover o cadastro de ${client.name}?`)) {
-                                onDeleteClient(client.id);
-                              }
-                            }}
+                            id={`btn-delete-client-${client.id}`}
+                            onClick={() => setClientToDelete(client)}
                             title="Remover Cliente"
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                           >
@@ -300,6 +301,80 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
           </table>
         </div>
       </div>
+
+      {/* In-app Delete Confirmation Modal (avoids window.confirm in iframes) */}
+      {clientToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden p-6 space-y-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  Remover Cadastro de Cliente?
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Esta ação eliminará os dados cadastrais permanentemente.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">Nome:</span>
+                <span className="font-bold text-slate-800">{clientToDelete.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">BI / NUIT:</span>
+                <span className="font-mono text-slate-700">{clientToDelete.bi} • {clientToDelete.nuit}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">Contacto:</span>
+                <span className="text-slate-700">{clientToDelete.phone}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setClientToDelete(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                id="btn-confirm-delete-client"
+                disabled={isDeleting}
+                onClick={async () => {
+                  setIsDeleting(true);
+                  try {
+                    await onDeleteClient(clientToDelete.id);
+                    setClientToDelete(null);
+                  } finally {
+                    setIsDeleting(false);
+                  }
+                }}
+                className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm transition-colors flex items-center space-x-1.5 disabled:opacity-60"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>A eliminar...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Sim, Eliminar Cliente</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -14,7 +14,7 @@ import { CreditModal } from '@/components/CreditModal';
 import { PaymentModal } from '@/components/PaymentModal';
 import { AdminProfileModal } from '@/components/AdminProfileModal';
 import { UserManagementModal } from '@/components/UserManagementModal';
-import { Client, CreditApplication, PaymentRecord } from '@/types';
+import { Client, CreditApplication, PaymentRecord, AuditLogRecord } from '@/types';
 import {
   fetchClients,
   addClientDoc,
@@ -29,6 +29,7 @@ import {
   recordPaymentDoc,
   updatePaymentDoc,
   deletePaymentDoc,
+  fetchAuditLogs,
   seedInitialData,
   autoHealMissingCreditsAndPayments,
 } from '@/lib/firestore-service';
@@ -43,6 +44,7 @@ function BayeteApp() {
   const [clients, setClients] = useState<Client[]>([]);
   const [credits, setCredits] = useState<CreditApplication[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLogRecord[]>([]);
   const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
   const [isSeeding, setIsSeeding] = useState<boolean>(false);
 
@@ -73,10 +75,11 @@ function BayeteApp() {
   const loadAppData = useCallback(async () => {
     setIsLoadingData(true);
     try {
-      let [fetchedClients, fetchedCredits, fetchedPayments] = await Promise.all([
+      let [fetchedClients, fetchedCredits, fetchedPayments, fetchedAuditLogs] = await Promise.all([
         fetchClients(),
         fetchCredits(),
         fetchPayments(),
+        fetchAuditLogs(),
       ]);
 
       // If clients exist in Firebase but credits are missing (e.g. from prior runs), synchronize them directly to Firestore
@@ -85,11 +88,13 @@ function BayeteApp() {
         const healed = await autoHealMissingCreditsAndPayments(fetchedClients);
         fetchedCredits = healed.credits;
         fetchedPayments = healed.payments;
+        fetchedAuditLogs = await fetchAuditLogs();
       }
 
       setClients(fetchedClients);
       setCredits(fetchedCredits);
       setPayments(fetchedPayments);
+      setAuditLogs(fetchedAuditLogs);
     } catch (err) {
       console.error('Error loading Firestore data:', err);
     } finally {
@@ -103,6 +108,14 @@ function BayeteApp() {
     }
   }, [user, loadAppData]);
 
+  // Current user actor representation for Firebase audit trails
+  const userActor = {
+    name: user?.displayName || user?.email || 'Administrador Bayete',
+    email: user?.email || undefined,
+    role: user?.role || 'admin',
+    uid: user?.uid || undefined,
+  };
+
   // Seed Data Handler
   const handleSeedData = async () => {
     setIsSeeding(true);
@@ -111,6 +124,8 @@ function BayeteApp() {
       setClients(seeded.clients);
       setCredits(seeded.credits);
       setPayments(seeded.payments);
+      const seededAudit = await fetchAuditLogs();
+      setAuditLogs(seededAudit);
       showToast('Dados de demonstração gravados e sincronizados com sucesso no Firebase!');
     } catch (err) {
       console.error('Error seeding data:', err);
@@ -128,15 +143,16 @@ function BayeteApp() {
     }
     try {
       if (clientToEdit) {
-        await updateClientDoc(clientToEdit.id, clientData);
+        await updateClientDoc(clientToEdit.id, clientData, userActor);
         setClients((prev) => prev.map((c) => (c.id === clientToEdit.id ? { ...c, ...clientData } : c)));
         showToast('Dados do cliente atualizados com sucesso no Firebase!');
       } else {
-        const newClient = await addClientDoc(clientData);
+        const newClient = await addClientDoc(clientData, userActor);
         setClients((prev) => [newClient, ...prev.filter((c) => c.id !== newClient.id)]);
         showToast('Novo cliente cadastrado com sucesso no Firebase!');
       }
       setClientToEdit(null);
+      fetchAuditLogs().then(setAuditLogs).catch(() => {});
     } catch (err: any) {
       console.error('Erro ao guardar cliente:', err);
       showToast(err.message || 'Erro ao guardar cliente na base de dados.', 'error');
@@ -149,9 +165,10 @@ function BayeteApp() {
       return;
     }
     try {
-      await deleteClientDoc(id);
+      await deleteClientDoc(id, userActor);
       setClients((prev) => prev.filter((c) => c.id !== id));
       showToast('Cliente removido da base de dados Firebase.');
+      fetchAuditLogs().then(setAuditLogs).catch(() => {});
     } catch (err: any) {
       console.error('Erro ao remover cliente:', err);
       showToast('Erro ao remover cliente do Firebase.', 'error');
@@ -185,17 +202,18 @@ function BayeteApp() {
     try {
       if (creditId || creditToEdit) {
         const targetId = creditId || creditToEdit!.id;
-        await updateCreditDoc(targetId, creditData);
+        await updateCreditDoc(targetId, creditData, userActor);
         setCredits((prev) =>
           prev.map((c) => (c.id === targetId ? { ...c, ...creditData, id: targetId } : c))
         );
         showToast('Proposta de crédito atualizada com sucesso no Firebase!');
         setCreditToEdit(null);
       } else {
-        const newCredit = await addCreditDoc(creditData);
+        const newCredit = await addCreditDoc(creditData, userActor);
         setCredits((prev) => [newCredit, ...prev.filter((c) => c.id !== newCredit.id)]);
         showToast('Proposta de crédito registada e gravada no Firebase com sucesso!');
       }
+      fetchAuditLogs().then(setAuditLogs).catch(() => {});
     } catch (err: any) {
       console.error('Erro ao registar crédito no Firebase:', err);
       showToast(err.message || 'Erro ao gravar proposta no Firebase.', 'error');
@@ -209,9 +227,10 @@ function BayeteApp() {
       return;
     }
     try {
-      await deleteCreditDoc(id);
+      await deleteCreditDoc(id, userActor);
       setCredits((prev) => prev.filter((c) => c.id !== id));
       showToast('Proposta de crédito eliminada com sucesso da base de dados Firebase.');
+      fetchAuditLogs().then(setAuditLogs).catch(() => {});
     } catch (err: any) {
       console.error('Erro ao eliminar crédito no Firebase:', err);
       showToast('Erro ao eliminar proposta no Firebase.', 'error');
@@ -238,11 +257,12 @@ function BayeteApp() {
       return;
     }
     try {
-      await updateCreditStatusDoc(id, status, notes);
+      await updateCreditStatusDoc(id, status, notes, undefined, userActor);
       setCredits((prev) =>
         prev.map((c) => (c.id === id ? { ...c, status, ...(notes ? { analystNotes: notes } : {}) } : c))
       );
       showToast(`Estado do microcrédito alterado para "${status.toUpperCase()}" na base de dados Firebase.`);
+      fetchAuditLogs().then(setAuditLogs).catch(() => {});
     } catch (err: any) {
       console.error('Erro ao atualizar crédito no Firebase:', err);
       showToast('Erro ao atualizar estado na base de dados Firebase.', 'error');
@@ -255,7 +275,10 @@ function BayeteApp() {
     installmentNumber: number,
     amount: number,
     method: PaymentRecord['paymentMethod'],
-    notes: string
+    notes: string,
+    reminderDate?: string,
+    reminderNote?: string,
+    reminderStatus?: 'pendente' | 'concluido' | 'cancelado'
   ) => {
     if (!isAdmin) {
       showToast('Acesso negado: Apenas o administrador pode registar pagamentos.', 'error');
@@ -268,12 +291,22 @@ function BayeteApp() {
         amount,
         method,
         notes,
-        user?.displayName || 'Gestor Bayete'
+        user?.displayName || 'Gestor Bayete',
+        reminderDate,
+        reminderNote,
+        reminderStatus,
+        userActor
       );
 
       setPayments((prev) => [result.payment, ...prev.filter((p) => p.id !== result.payment.id)]);
       setCredits((prev) => prev.map((c) => (c.id === credit.id ? result.updatedCredit : c)));
-      showToast(`Pagamento de ${amount} MT registado no Firebase! Recibo: ${result.payment.receiptNumber}`);
+      const reminderMsg = reminderDate
+        ? ` com lembrete agendado para ${new Date(reminderDate + 'T12:00:00').toLocaleDateString('pt-MZ')}`
+        : '';
+      showToast(
+        `Pagamento de ${amount} MT registado no Firebase! Recibo: ${result.payment.receiptNumber}${reminderMsg}`
+      );
+      fetchAuditLogs().then(setAuditLogs).catch(() => {});
       return result;
     } catch (err: any) {
       console.error('Erro ao registar pagamento no Firebase:', err);
@@ -288,10 +321,11 @@ function BayeteApp() {
       return;
     }
     try {
-      await updatePaymentDoc(id, updates);
+      await updatePaymentDoc(id, updates, userActor);
       setPayments((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
       showToast('Registo de pagamento atualizado com sucesso no Firebase!');
       setPaymentToEdit(null);
+      fetchAuditLogs().then(setAuditLogs).catch(() => {});
     } catch (err: any) {
       console.error('Erro ao atualizar pagamento no Firebase:', err);
       showToast(err.message || 'Erro ao atualizar pagamento no Firebase.', 'error');
@@ -304,12 +338,13 @@ function BayeteApp() {
       return;
     }
     try {
-      await deletePaymentDoc(payment.id, payment.creditId, payment.installmentNumber, payment.amountPaid);
+      await deletePaymentDoc(payment.id, payment.creditId, payment.installmentNumber, payment.amountPaid, userActor);
       setPayments((prev) => prev.filter((p) => p.id !== payment.id));
       // Refresh credits to reflect any balance adjustment
       const refreshedCredits = await fetchCredits();
       setCredits(refreshedCredits);
       showToast('Registo de pagamento eliminado com sucesso no Firebase.');
+      fetchAuditLogs().then(setAuditLogs).catch(() => {});
     } catch (err: any) {
       console.error('Erro ao eliminar pagamento no Firebase:', err);
       showToast('Erro ao eliminar pagamento no Firebase.', 'error');
@@ -440,6 +475,7 @@ function BayeteApp() {
               <CreditAnalysisView
                 credits={credits}
                 clients={clients}
+                auditLogs={auditLogs}
                 onOpenNewCredit={() => {
                   setCreditToEdit(null);
                   setPreselectedCreditClientId(undefined);
@@ -456,6 +492,7 @@ function BayeteApp() {
               <PaymentsView
                 payments={payments}
                 credits={credits}
+                auditLogs={auditLogs}
                 onOpenNewPayment={(creditId) => {
                   setPaymentToEdit(null);
                   setPreselectedPaymentCreditId(creditId);
@@ -471,6 +508,11 @@ function BayeteApp() {
                 clients={clients}
                 credits={credits}
                 payments={payments}
+                auditLogs={auditLogs}
+                onRefreshAuditLogs={async () => {
+                  const logs = await fetchAuditLogs();
+                  setAuditLogs(logs);
+                }}
                 onSeedData={handleSeedData}
                 onOpenProfile={() => setIsProfileModalOpen(true)}
                 isSeeding={isSeeding}
@@ -489,6 +531,7 @@ function BayeteApp() {
           setClientToEdit(null);
         }}
         onSave={handleSaveClient}
+        onDelete={handleDeleteClient}
         clientToEdit={clientToEdit}
       />
 

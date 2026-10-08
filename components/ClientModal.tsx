@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { Client } from '@/types';
-import { X, Save, User, Phone, Mail, MapPin, FileText, Briefcase, DollarSign, AlertCircle } from 'lucide-react';
+import { X, Save, User, Phone, Mail, MapPin, FileText, Briefcase, DollarSign, AlertCircle, Trash2, RotateCcw, Loader2 } from 'lucide-react';
 
 interface ClientModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (clientData: Omit<Client, 'id'>) => Promise<void>;
+  onDelete?: (id: string) => Promise<void>;
   clientToEdit?: Client | null;
 }
 
@@ -15,6 +16,7 @@ export const ClientModal: React.FC<ClientModalProps> = ({
   isOpen,
   onClose,
   onSave,
+  onDelete,
   clientToEdit,
 }) => {
   const [name, setName] = useState('');
@@ -28,6 +30,8 @@ export const ClientModal: React.FC<ClientModalProps> = ({
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<Client['status']>('ativo');
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -55,7 +59,36 @@ export const ClientModal: React.FC<ClientModalProps> = ({
       setStatus('ativo');
     }
     setError(null);
+    setShowDeleteConfirm(false);
   }, [clientToEdit, isOpen]);
+
+  const handleResetForm = () => {
+    setName('');
+    setPhone('+258 ');
+    setEmail('');
+    setAddress('');
+    setBi('');
+    setNuit('');
+    setSalary('');
+    setProfession('');
+    setNotes('');
+    setStatus('ativo');
+    setError(null);
+  };
+
+  const handleDeleteClient = async () => {
+    if (!clientToEdit || !onDelete) return;
+    setIsDeleting(true);
+    try {
+      await onDelete(clientToEdit.id);
+      setShowDeleteConfirm(false);
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Erro ao eliminar cadastro do cliente.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -356,26 +389,95 @@ export const ClientModal: React.FC<ClientModalProps> = ({
             </div>
           </div>
 
+          {/* Delete Confirmation Box */}
+          {showDeleteConfirm && (
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs space-y-2.5 animate-in fade-in duration-200">
+              <div className="font-semibold text-rose-800 flex items-center space-x-1.5">
+                <Trash2 className="w-4 h-4 text-rose-600" />
+                <span>Confirmar eliminação permanente do cliente?</span>
+              </div>
+              <p className="text-[11px] text-rose-700">
+                Tem a certeza que deseja apagar o cadastro de <strong>{clientToEdit?.name}</strong>? Esta ação removerá o registo da base de dados.
+              </p>
+              <div className="flex items-center space-x-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={isDeleting}
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  id="client-form-confirm-delete"
+                  onClick={handleDeleteClient}
+                  disabled={isDeleting}
+                  className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-sm transition-colors flex items-center space-x-1.5"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>A eliminar...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Sim, Eliminar</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Footer Buttons */}
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
-            <button
-              id="client-form-cancel"
-              type="button"
-              onClick={onClose}
-              disabled={isSaving}
-              className="px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              id="client-form-save"
-              type="submit"
-              disabled={isSaving}
-              className="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors flex items-center space-x-1.5 disabled:opacity-60"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{isSaving ? 'A Guardar no Firebase...' : 'Guardar Empreendedor'}</span>
-            </button>
+          <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+            <div>
+              {clientToEdit && onDelete ? (
+                <button
+                  id="client-form-delete-btn"
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(!showDeleteConfirm)}
+                  disabled={isSaving || isDeleting}
+                  className="inline-flex items-center space-x-1 px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Eliminar Cliente</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleResetForm}
+                  disabled={isSaving}
+                  className="inline-flex items-center space-x-1 px-3 py-2 text-xs font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Limpar Formulário</span>
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center space-x-2.5">
+              <button
+                id="client-form-cancel"
+                type="button"
+                onClick={onClose}
+                disabled={isSaving || isDeleting}
+                className="px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                id="client-form-save"
+                type="submit"
+                disabled={isSaving || isDeleting}
+                className="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors flex items-center space-x-1.5 disabled:opacity-60"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{isSaving ? 'A Guardar no Firebase...' : 'Guardar Empreendedor'}</span>
+              </button>
+            </div>
           </div>
         </form>
       </div>

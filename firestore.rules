@@ -1,34 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    function isExplicitViewer() {
-      return isAuthenticated() &&
-        exists(/databases/$(database)/documents/user_profiles/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/user_profiles/$(request.auth.uid)).data.role == 'viewer';
-    }
-
-    match /user_profiles/{userId} {
+    match /{document=**} {
       allow read, write: if true;
-    }
-
-    match /clients/{clientId} {
-      allow read: if true;
-      allow write: if !isExplicitViewer();
-    }
-
-    match /credits/{creditId} {
-      allow read: if true;
-      allow write: if !isExplicitViewer();
-    }
-
-    match /payments/{paymentId} {
-      allow read: if true;
-      allow write: if !isExplicitViewer();
     }
   }
 }

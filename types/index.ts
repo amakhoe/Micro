@@ -77,6 +77,9 @@ export interface PaymentRecord {
   paymentMethod: 'm-pesa' | 'e-mola' | 'm-kesh' | 'transferencia' | 'dinheiro' | 'outro';
   receiptNumber: string;
   notes?: string;
+  reminderDate?: string;
+  reminderNote?: string;
+  reminderStatus?: 'pendente' | 'concluido' | 'cancelado';
   recordedBy?: string;
   createdAt: string;
 }
@@ -101,4 +104,33 @@ export interface UserProfile {
   email: string;
   displayName: string;
   role: 'admin' | 'viewer';
+}
+
+export type AuditTargetType = 'credit' | 'payment' | 'client';
+
+export type AuditActionType =
+  | 'criacao'
+  | 'atualizacao'
+  | 'alteracao_status'
+  | 'pagamento'
+  | 'estorno'
+  | 'eliminacao';
+
+export interface AuditLogRecord {
+  id: string;
+  targetType: AuditTargetType;
+  targetId: string;
+  targetReference?: string;
+  clientName?: string;
+  actionType: AuditActionType;
+  actionLabel: string;
+  actionDescription: string;
+  performedBy: string;
+  performedByEmail?: string;
+  performedByRole?: string;
+  performedByUid?: string;
+  timestamp: string; // ISO format
+  previousState?: string;
+  newState?: string;
+  amount?: number;
 }

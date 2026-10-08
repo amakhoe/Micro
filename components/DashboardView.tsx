@@ -13,6 +13,11 @@ import {
   Pie,
   Cell,
   Tooltip as RechartsTooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
 } from 'recharts';
 import {
   Users,
@@ -41,6 +46,7 @@ import {
   Eye,
   Lock,
   PieChart as PieChartIcon,
+  BarChart3,
   XCircle,
   FileCheck,
   Filter,
@@ -195,6 +201,105 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       chartData,
     };
   }, [credits]);
+
+  // Volume total de pagamentos recebidos nos últimos 6 meses (Recharts BarChart)
+  const monthlyPaymentsData = useMemo(() => {
+    const now = new Date();
+    const months: Array<{
+      key: string;
+      shortLabel: string;
+      fullLabel: string;
+      monthName: string;
+      totalAmount: number;
+      paymentCount: number;
+      averageTicket: number;
+    }> = [];
+
+    const monthNamesPt = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+
+    const shortNamesPt = [
+      'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
+      'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'
+    ];
+
+    // Generate last 6 calendar months ending on current month
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const monthIdx = d.getMonth();
+      const key = `${year}-${String(monthIdx + 1).padStart(2, '0')}`;
+      const shortYear = String(year).slice(-2);
+
+      months.push({
+        key,
+        shortLabel: `${shortNamesPt[monthIdx]}/${shortYear}`,
+        fullLabel: `${monthNamesPt[monthIdx]} de ${year}`,
+        monthName: shortNamesPt[monthIdx],
+        totalAmount: 0,
+        paymentCount: 0,
+        averageTicket: 0,
+      });
+    }
+
+    // Aggregate payments
+    payments.forEach((p) => {
+      if (!p.amountPaid || p.amountPaid <= 0) return;
+      const rawDate = p.paymentDate || p.createdAt;
+      if (!rawDate) return;
+
+      try {
+        const pDate = new Date(rawDate);
+        if (isNaN(pDate.getTime())) return;
+        const key = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
+        const targetMonth = months.find((m) => m.key === key);
+        if (targetMonth) {
+          targetMonth.totalAmount += Number(p.amountPaid);
+          targetMonth.paymentCount += 1;
+        }
+      } catch {
+        // Skip malformed dates safely
+      }
+    });
+
+    // Compute average ticket per month
+    months.forEach((m) => {
+      m.averageTicket = m.paymentCount > 0 ? Math.round(m.totalAmount / m.paymentCount) : 0;
+    });
+
+    const totalSemester = months.reduce((acc, m) => acc + m.totalAmount, 0);
+    const totalTransactions = months.reduce((acc, m) => acc + m.paymentCount, 0);
+    const averageMonthly = Math.round(totalSemester / 6);
+
+    // Peak month
+    let peakMonth = months[0];
+    months.forEach((m) => {
+      if (m.totalAmount > peakMonth.totalAmount) {
+        peakMonth = m;
+      }
+    });
+
+    // Month-over-month growth (last month vs previous month)
+    const currentMonthData = months[months.length - 1];
+    const prevMonthData = months[months.length - 2];
+    let momGrowth: number | null = null;
+    if (prevMonthData && prevMonthData.totalAmount > 0) {
+      momGrowth = Number(
+        (((currentMonthData.totalAmount - prevMonthData.totalAmount) / prevMonthData.totalAmount) * 100).toFixed(1)
+      );
+    }
+
+    return {
+      chartData: months,
+      totalSemester,
+      totalTransactions,
+      averageMonthly,
+      peakMonth,
+      momGrowth,
+    };
+  }, [payments]);
 
   // Compute pending installment alerts
   const allAlerts: DueAlertItem[] = useMemo(() => {
@@ -958,6 +1063,216 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 Soma de todas as propostas submetidas à Bayete
               </span>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* SEÇÃO: GRÁFICO DE BARRAS - VOLUME TOTAL DE PAGAMENTOS RECEBIDOS (ÚLTIMOS 6 MESES) */}
+      <section
+        id="section-dashboard-payments-barchart"
+        className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+      >
+        {/* Card Header */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/90 via-white to-emerald-50/40 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center justify-center shrink-0 shadow-xs">
+              <BarChart3 className="w-5 h-5 text-emerald-700" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                <h2 className="text-sm font-bold text-slate-900 tracking-tight">
+                  Volume de Pagamentos Recebidos (Últimos 6 Meses)
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono">
+                  {formatCurrencyMT(monthlyPaymentsData.totalSemester)} arrecadados
+                </span>
+                {monthlyPaymentsData.momGrowth !== null && (
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border font-mono ${
+                      monthlyPaymentsData.momGrowth >= 0
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-rose-50 text-rose-700 border-rose-200'
+                    }`}
+                  >
+                    {monthlyPaymentsData.momGrowth >= 0 ? '+' : ''}
+                    {monthlyPaymentsData.momGrowth}% vs mês anterior
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Evolução mensal do montante total amortizado pelos microempreendedores para análise rápida de liquidez e desempenho.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 shrink-0 self-start md:self-auto">
+            {isAdmin && (
+              <button
+                type="button"
+                id="btn-barchart-new-payment"
+                onClick={onOpenNewPayment}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors"
+                title="Registar amortização ou pagamento de parcela"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Registar Pagamento</span>
+              </button>
+            )}
+            <button
+              type="button"
+              id="btn-barchart-view-all-payments"
+              onClick={() => onNavigateTab('payments')}
+              className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-emerald-300 hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors"
+            >
+              <span>Ver Histórico</span>
+              <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
+            </button>
+          </div>
+        </div>
+
+        {/* Card Body: Summary KPI Badges + Bar Chart */}
+        <div className="p-4 sm:p-6 space-y-6">
+          {/* Quick Metrics Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                Total do Semestre (6m)
+              </span>
+              <span className="text-base font-bold font-mono text-emerald-700">
+                {formatCurrencyMT(monthlyPaymentsData.totalSemester)}
+              </span>
+              <span className="text-[10px] text-slate-500 block">
+                {monthlyPaymentsData.totalTransactions} recibos liquidados
+              </span>
+            </div>
+
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                Média Mensal
+              </span>
+              <span className="text-base font-bold font-mono text-slate-900">
+                {formatCurrencyMT(monthlyPaymentsData.averageMonthly)}
+              </span>
+              <span className="text-[10px] text-slate-500 block">
+                Recuperação média regular
+              </span>
+            </div>
+
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                Mês de Pico (Maior Volume)
+              </span>
+              <span className="text-base font-bold font-mono text-emerald-800">
+                {monthlyPaymentsData.peakMonth.shortLabel}
+              </span>
+              <span className="text-[10px] text-slate-500 block font-mono">
+                {formatCurrencyMT(monthlyPaymentsData.peakMonth.totalAmount)} ({monthlyPaymentsData.peakMonth.paymentCount} recibos)
+              </span>
+            </div>
+
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                Mês Atual ({monthlyPaymentsData.chartData[monthlyPaymentsData.chartData.length - 1]?.shortLabel})
+              </span>
+              <span className="text-base font-bold font-mono text-slate-800">
+                {formatCurrencyMT(monthlyPaymentsData.chartData[monthlyPaymentsData.chartData.length - 1]?.totalAmount || 0)}
+              </span>
+              <span className="text-[10px] text-slate-500 block">
+                {monthlyPaymentsData.chartData[monthlyPaymentsData.chartData.length - 1]?.paymentCount || 0} pagamentos este mês
+              </span>
+            </div>
+          </div>
+
+          {/* Recharts BarChart */}
+          <div className="h-72 w-full pt-2">
+            {isMounted ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={monthlyPaymentsData.chartData}
+                  margin={{ top: 15, right: 15, left: 0, bottom: 5 }}
+                >
+                  <defs>
+                    <linearGradient id="paymentBarGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.95} />
+                      <stop offset="100%" stopColor="#059669" stopOpacity={0.8} />
+                    </linearGradient>
+                    <linearGradient id="paymentBarGradientPeak" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#047857" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#065f46" stopOpacity={0.95} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="shortLabel"
+                    tickLine={false}
+                    axisLine={{ stroke: '#e2e8f0' }}
+                    tick={{ fill: '#64748b', fontSize: 11, fontWeight: 500 }}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: '#64748b', fontSize: 10, fontFamily: 'monospace' }}
+                    tickFormatter={(val) =>
+                      val >= 1000 ? `${Math.round(val / 1000)}k MT` : `${val} MT`
+                    }
+                  />
+                  <RechartsTooltip
+                    cursor={{ fill: 'rgba(241, 245, 249, 0.6)' }}
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload as (typeof monthlyPaymentsData.chartData)[0];
+                        return (
+                          <div className="bg-slate-900/95 backdrop-blur-sm text-white p-3 rounded-xl shadow-xl border border-slate-700 text-xs min-w-[210px] z-50">
+                            <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-800">
+                              <span className="font-bold text-slate-100">{data.fullLabel}</span>
+                              <span className="text-[10px] text-emerald-400 font-mono font-semibold">
+                                {data.paymentCount} {data.paymentCount === 1 ? 'recibo' : 'recibos'}
+                              </span>
+                            </div>
+                            <div className="space-y-1.5">
+                              <div className="flex justify-between items-center text-slate-300">
+                                <span>Volume Total:</span>
+                                <span className="font-bold font-mono text-sm text-emerald-400">
+                                  {formatCurrencyMT(data.totalAmount)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center text-slate-400 text-[11px]">
+                                <span>Ticket Médio:</span>
+                                <span className="font-mono text-slate-200">
+                                  {formatCurrencyMT(data.averageTicket)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar
+                    dataKey="totalAmount"
+                    name="Volume Recebido (MT)"
+                    radius={[6, 6, 0, 0]}
+                    maxBarSize={52}
+                  >
+                    {monthlyPaymentsData.chartData.map((entry) => (
+                      <Cell
+                        key={`cell-${entry.key}`}
+                        fill={
+                          entry.key === monthlyPaymentsData.peakMonth.key && entry.totalAmount > 0
+                            ? 'url(#paymentBarGradientPeak)'
+                            : 'url(#paymentBarGradient)'
+                        }
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-slate-400 text-xs">
+                A carregar gráfico financeiro...
+              </div>
+            )}
           </div>
         </div>
       </section>
